@@ -1,0 +1,291 @@
+---
+title: "length-exploration"
+author: "Dan Ovando"
+date: "8/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(tidyverse)
+library(here)
+library(rlang)
+library(janitor)
+```
+
+
+This document is just a sketch pad for the kinds of analysis that we're going to include for length composition data. 
+
+Goal for today: basic input of data, write function to aggregate length comps by arbitraty inputs, and then plot by user defined functions. If you get fancy you'll throw in mapping too
+
+Reminder, modern tidy eva examples here. 
+
+For now, focus on demonstrating plotting, get to setting up data cleaning workflow first. 
+
+https://dplyr.tidyverse.org/articles/programming.html
+```{r}
+lcomps <- read_csv(here("data","BiometricosTable.csv")) %>% 
+  janitor::clean_names() 
+
+
+counter <- function(data, group_var, length_col) {
+  
+  group_var <- c(group_var, length_col)
+
+  out <- data %>%
+    group_by(across({{ group_var }})) %>%
+    count()
+  
+  return(out)
+  
+  
+}
+  
+
+a = counter(lcomps, group_var = c("anho"),length_col = "longitud_total" )
+
+
+```
+
+basic plotter function: specify a column and make histograms 
+
+```{r}
+
+bar_plot <- function(df, count_var, fill_var = NULL) {
+  ggplot(df) + 
+    geom_bar(aes(x = .data[[count_var]], fill = factor(.data[[fill_var]])))
+}
+
+lcomps %>% 
+  bar_plot(count_var = "anho",fill_var = "mes")
+
+lcomps %>% 
+  bar_plot(count_var = "longitud_total",fill_var = "mes")
+
+
+```
+
+
+xy plot
+```{r}
+
+xy_plot <- function(data, x_var, y_var){
+  
+  data %>%
+    ggplot(aes(x = .data[[x_var]], y = .data[[y_var]])) +
+    geom_point()
+  
+    # data %>% 
+    # ggplot(aes(x = {{x_var}}, y = {{y_var}})) + 
+    # geom_point()
+  
+}
+
+xy_plot(lcomps, x_var = "longitud_total", y_var = "peso_total")
+
+```
+
+
+cool so that's going to be the core of a lot of this. 
+
+So what does a workflow look like? Remember the point of this isn't to reach an answer. THe objective should be to help people play with their data, and then store plots that they like.
+
+So, a rough sense of layout: 
+
+1. Intro tab
+
+2. Tabs for each data type
+
+Withing each tab...
+ - section for data processing /cleaning. pree "process data" button to move to next step
+ - adaptive section that takes colnames resulting from the first step and uses that to update list of possible variable for dplyr fun. Basically table creation
+  - press "summarise data" button to move onto next section
+ - adaptive section that takes output of a summary table to update possible plotting variables and lets people plot them
+  - press (plot_data) button to move on to next section
+ - a "save" button that lets you store the results of that sequence, and a "generater report" tab that lets you load saved runs and generate a report from them
+
+So, goal here is to work through that workflow in here, and then once you've got that up and running move the concept over to shiny
+
+One question here: how much help do you want to to do with data cleaning?
+
+It would be way to hard to essentially put a shiny front end on dplyr, e.g. letting people create custom fixes, like misspellings etc. For that, I think you should instruct people to use this as a platform to explore their data, then go back and fix the uploaded data (with some warnings about messing up the raw data). 
+
+But, you could hard code in some of the most common problems, e.g. units. 
+
+For example, you could let people specify what units things are supposed to be, and then help them identify outliers based on the units and the max size for that species, and then plot and examine outliers, and elect the right conversion for those thins (e.g. input divide by 1000 if it's in KM and it should be in M)
+
+# Length Data
+
+## Quality Checks
+
+```{r eval = FALSE}
+ui <- fluidPage(
+  selectInput("x", "X variable", choices = names(iris)),
+  selectInput("y", "Y variable", choices = names(iris)),
+  selectInput("geom", "geom", c("point", "smooth", "jitter")),
+  plotOutput("plot")
+)
+server <- function(input, output, session) {
+  plot_geom <- reactive({
+    switch(input$geom,
+      point = geom_point(),
+      smooth = geom_smooth(se = FALSE),
+      jitter = geom_jitter()
+    )
+  })
+  
+  output$plot <- renderPlot({
+    ggplot(iris, aes(.data[[input$x]], .data[[input$y]])) +
+      plot_geom()
+  }, res = 96)
+}
+```
+
+12.1.2 Example: ggplot2 from mastering shiny
+
+let people do some basic plotting
+```{r}
+
+  plot_geom <-function(geom){
+    switch(geom,
+      point = geom_point(),
+      histogram = geom_histogram()
+    )
+  }
+
+
+plotter <- function(data,
+                    x = NA,
+                    y = NA,
+                    fill = NA) {
+  
+  if (!is.na(x) & !is.na(y)) {
+    if (!is.na(fill)) {
+      ggplot(data) +
+        geom_point(aes(.data[[x]], .data[[y]], fill = as.factor(.data[[fill]])), shape = 21)
+      
+    } else {
+      ggplot(data) +
+        geom_point(aes(.data[[x]], .data[[y]]), shape = 21, fill = "black")
+      
+    }
+    
+    
+    # geom_point(aes(.data[[x]], .data[[y]]), fill = as.factor(.data[[fill]]), shape = 21)
+    #
+  } else {
+    if (!is.na(fill)) {
+      ggplot(data) +
+        geom_histogram(aes(.data[[x]], fill = as.factor(.data[[fill]])), position = "dodge")
+      
+    } else {
+      ggplot(data) +
+        geom_histogram(aes(.data[[x]]), position = "dodge")
+      
+    }
+    
+  }
+  
+}
+
+plotter(lcomps, x = "longitud_total", fill = "anho")
+
+plotter(lcomps, x = "longitud_total", y = "anho")
+
+          
+
+```
+
+And then maybe allow for two basic things: drop things less than something, and convert something else 
+
+
+```{r}
+
+filterfoo <- function(data, far, flim) {
+
+data <- data %>% 
+  filter(.data[[far]] <= flim)
+
+
+}
+
+test <- filterfoo(lcomps, "longitud_total", 100)
+
+convert <- function(data, var, breaker, scalar) {
+
+  data[data[,var] > breaker & !is.na(data[,var]),var] =  data[data[,var] > breaker & !is.na(data[,var]),var] / scalar
+
+return(data)
+}
+
+a = convert(lcomps, var = "longitud_total", breaker = 100, scalar =  100)
+
+```
+
+
+## Aggregate Data
+
+
+```{r}
+counter <- function(data, group_var = NULL, length_col,n_col = NA, type = "obs") {
+  
+  group_var <- c(group_var, length_col)
+  
+  if (type == "obs") {
+
+  out <- data %>%
+    group_by(across({{ group_var }})) %>%
+    count()
+  } else if (type == "counts"){
+    
+      out <- data %>%
+    group_by(across({{ group_var }})) %>%
+    summarise(n = sum(.data[[n_col]]))
+    
+  }
+  
+  return(ungroup(out))
+  
+  
+}
+  
+
+a = counter(lcomps, group_var = c("anho", "mes"),length_col = "longitud_total" )
+
+
+b = counter(a, group_var = "mes", length_col = "longitud_total", n_col = "n", type = "counts")
+```
+  ## Plot Summaries
+
+
+```{r}
+plotter <- function(data,
+                    x = NA,
+                    y = NA,
+                    fill = NA,
+                    facet = NA,
+                    scales = "free_y") {
+  
+  if (is.na(facet)){
+    data$facet <-  ""
+    facet <- "facet"
+  }
+  
+  
+  if (!is.na(x) & !is.na(y)){
+    data %>% 
+    ggplot(aes(x = .data[[x]], y = .data[[y]])) + 
+    geom_point() + 
+    facet_wrap(vars(.data[[facet]]), scales = scales)
+    
+  } else {
+  data %>% 
+    ggplot(aes(x = .data[[x]])) + 
+    geom_histogram() + 
+    facet_wrap(vars(.data[[facet]]), scales = scales)
+  }
+}
+
+plotter(b, x = "mes",y = "n", scales = "free")
+```
+
