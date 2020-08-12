@@ -1,30 +1,40 @@
-library(shiny)
-library(ggplot2)
-library(sf)
-library(rnaturalearth)
-library(dplyr)
-library(purrr)
-library(broom)
-library(here)
-library(shinythemes)
-library(shinycssloaders)
-library(shinydashboard)
-library(FishLife)
-library(taxize)
-library(here)
-library(shinyalert)
+
 
 server <- function(input, output, session) {
 
-  dataset <- reactive({
-    get(input$dataset, "package:datasets")
+
+# length composition ------------------------------------------------------
+
+
+  lcomps <- read_csv(here("data", "BiometricosTable.csv")) %>%
+    janitor::clean_names()
+
+  output$lcomps <-
+    renderDataTable(lcomps,
+                    options = list(pageLength = 5))
+
+  output$inspectplot_x <- renderUI({
+    vars <- colnames(lcomps[map_lgl(lcomps, is.numeric)])
+    selectizeInput(
+      "inspectplot_x",
+      "Select X Variable from raw data to plot",
+      vars
+    )
   })
 
-  output$summary <- renderPrint({
-    summary(dataset())
+  output$inspectplot_y <- renderUI({
+    vars <- c(NA,colnames(lcomps[map_lgl(lcomps, is.numeric)]))
+    selectizeInput(
+      "inspectplot_y",
+      "Select Y Variable from raw data to plot",
+      vars
+    )
   })
 
-  output$table <- renderTable({
-    dataset()
-  })
+
+
+  output$inspectplot <-
+    renderPlot(inspect_plot(lcomps, x = input$inspectplot_x, y = input$inspectplot_y))
+
+
 }

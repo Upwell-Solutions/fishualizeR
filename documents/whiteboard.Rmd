@@ -146,14 +146,6 @@ server <- function(input, output, session) {
 let people do some basic plotting
 ```{r}
 
-  plot_geom <-function(geom){
-    switch(geom,
-      point = geom_point(),
-      histogram = geom_histogram()
-    )
-  }
-
-
 plotter <- function(data,
                     x = NA,
                     y = NA,
@@ -190,7 +182,7 @@ plotter <- function(data,
 
 plotter(lcomps, x = "longitud_total", fill = "anho")
 
-plotter(lcomps, x = "longitud_total", y = "anho")
+plotter(lcomps, x = "longitud_total", y = NA)
 
           
 
