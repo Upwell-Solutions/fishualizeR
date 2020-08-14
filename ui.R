@@ -8,6 +8,8 @@ library(janitor)
 library(readr)
 library(ggplot2)
 library(purrr)
+library(dplyr)
+library(tidyr)
 
 functions <- list.files(here::here("R"))
 
@@ -35,18 +37,47 @@ function(input,output){
     tabItems(
     tabItem(tabName = "description",
     h1("fishualizeR"),
-    "fishualizeR helps users visualize common fishery related data"),
+    "fishualizeR helps users visualize common fishery related data. To start, click on the 'Length Composition Data' tab."),
     tabItem(tabName = "lcomps",
       fluidRow(box(title = "Load Data", "This will be a button for loading your data and specifying details about your data", width = 12)),
-    h2("This is some text"),
-    "Followed by more text",
-    box(title = "Length Composition Data", dataTableOutput("lcomps"), width = 12),
+    fluidRow(box(title = "Length Composition Data", dataTableOutput("lcomps"), width = 12, solidHeader = TRUE, collapsible = TRUE)),
     fluidRow(
+    tabBox(
+    title = "Examine Raw Data",
+    id = "inspect",
+    tabPanel(
+    "Plot Raw Data",
     box(uiOutput("inspectplot_x")),
     box(uiOutput("inspectplot_y")),
-    plotOutput("inspectplot")
-    ))
-  ) # close dashboard body
+    plotOutput("inspectplot",
+               height = "300px"),
+    br(),
+    br()
+    ),
+    br(),
+    br(),
+    br(),
+    br(),
+    tabPanel(title = "Modify Raw Data",{
+      "Placeholder for some minimal data filtering"
+    }
+    ),
+    width = 12)
+    ), # close inspect fluidrow
+    fluidRow(
+      box(title = "Aggregate Lenth Data", width = 12,solidHeader = TRUE, collapsible = TRUE,
+          uiOutput("select_ldata")
+          ,
+      "If rows represent tallies per length bin, select column with number of length bin",
+      uiOutput("select_tally"),
+      uiOutput("select_groupers"),
+      actionButton("group","Aggregate Data"),
+      dataTableOutput("grouped_lcomps")
+
+      )
+    )
+    ) # close lcomps tab
+  )
 )
   dashboardPage(
     header,

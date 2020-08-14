@@ -1,0 +1,12 @@
+name: fishualizeR
+title: fishualizeR
+username:
+account: danovando
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2662298
+bundleId: 3504441
+url: https://danovando.shinyapps.io/fishualizeR/
+when: 1597201726.86902
+asMultiple: FALSE
+asStatic: FALSE
