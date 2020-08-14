@@ -73,7 +73,16 @@ function(input,output){
       uiOutput("select_groupers"),
       actionButton("group","Aggregate Data"),
       dataTableOutput("grouped_lcomps")
-
+      )
+    ),
+    fluidRow(
+      box(title = "Plot Aggregated Lenth Data", width = 12,solidHeader = TRUE, collapsible = TRUE,
+      box(uiOutput("grouped_plot_x")),
+      box(uiOutput("grouped_plot_y")),
+      box(uiOutput("grouped_plot_fill")),
+      box(uiOutput("grouped_plot_facet")),
+      actionButton("plot_groupers","Plot Aggregate Data"),
+      plotOutput("group_plot")
       )
     )
     ) # close lcomps tab
