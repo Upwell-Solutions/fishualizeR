@@ -167,8 +167,19 @@ server <- function(input, output, session) {
         length_col = input$select_ldata
       )
 
+    #https://mastering-shiny.org/action-transfer.html
+    # remember tomorrow that you can return output of render / observed event as thing()
     output$grouped_lcomps <-
       renderDataTable(grouped_lcomps,  options = list(pageLength = 5))
+
+    output$download_grouper <- downloadHandler(
+      filename = function() {
+        "aggregated-lcomps.csv"
+      },
+      content = function(file) {
+        vroom::vroom_write(grouped_lcomps, file, ",")
+      }
+    )
 
     output$grouped_plot_x <- renderUI({
       vars <- c("Select one" = "", colnames(grouped_lcomps))
@@ -213,7 +224,8 @@ server <- function(input, output, session) {
           facet = input$grouped_facet,
           scales = "free"
         ))
-    })
+    },
+    ignoreInit = TRUE)
 
 
   })

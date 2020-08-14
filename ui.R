@@ -10,7 +10,13 @@ library(ggplot2)
 library(purrr)
 library(dplyr)
 library(tidyr)
+library(vroom)
+library(hrbrthemes)
 
+shiny_theme <- hrbrthemes::theme_ipsum(base_size = 14,
+                                       axis_title_size = 16)
+
+ggplot2::theme_set(shiny_theme)
 functions <- list.files(here::here("R"))
 
 purrr::walk(functions, ~ source(here::here("R", .x)))
@@ -37,7 +43,7 @@ function(input,output){
     tabItems(
     tabItem(tabName = "description",
     h1("fishualizeR"),
-    "fishualizeR helps users visualize common fishery related data. To start, click on the 'Length Composition Data' tab."),
+    "fishualizeR helps users visualize common fishery related data. To start, click on the 'Length Composition' tab."),
     tabItem(tabName = "lcomps",
       fluidRow(box(title = "Load Data", "This will be a button for loading your data and specifying details about your data", width = 12)),
     fluidRow(box(title = "Length Composition Data", dataTableOutput("lcomps"), width = 12, solidHeader = TRUE, collapsible = TRUE)),
@@ -72,7 +78,8 @@ function(input,output){
       uiOutput("select_tally"),
       uiOutput("select_groupers"),
       actionButton("group","Aggregate Data"),
-      dataTableOutput("grouped_lcomps")
+      dataTableOutput("grouped_lcomps"),
+      downloadButton("download_grouper", "Download Aggregated Data"),
       )
     ),
     fluidRow(
