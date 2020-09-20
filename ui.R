@@ -1,3 +1,4 @@
+options(shiny.maxRequestSize = 50 * 1024^2)
 library(shiny)
 library(shinythemes)
 library(shinycssloaders)
@@ -12,6 +13,7 @@ library(dplyr)
 library(tidyr)
 library(vroom)
 library(hrbrthemes)
+library(DT)
 
 shiny_theme <- hrbrthemes::theme_ipsum(base_size = 14,
                                        axis_title_size = 16)
@@ -46,14 +48,19 @@ function(input,output){
     h1("fishualizeR"),
     "fishualizeR helps users visualize common fishery related data. To start, click on the 'Length Composition' tab."),
     tabItem(tabName = "lcomps",
-      fluidRow(box(title = "Load Data", "This will be a button for loading your data and specifying details about your data", width = 12)),
+      checkboxInput("example","Check this box to use example data instead of uploading data"),
+      fluidRow(h4("Go through and fill out the various options in different sections. Leave as NA anything that you don't want to plot.")),
+      fluidRow(
+        box(title = "Load Data as .csv file (max size 50 MB)",fileInput("file", NULL), width = 12)),
+      # numericInput("n", "Rows", value = 5, min = 1, step = 1),
+      # tableOutput("head"),
     fluidRow(box(title = "Length Composition Data",
                  uiOutput("colnames"),
                  dataTableOutput("lcomps"), width = 12, solidHeader = TRUE, collapsible = TRUE)),
     fluidRow(
       box(
         uiOutput("select_ldata"),
-        "If rows represent tallies per length bin, select column with number of length bin. Otherwise leave as NA",
+        "If rows represent tallies per length bin, select column with number of observations per length bin. Otherwise leave as 'NA'",
         uiOutput("select_tally")
       )
     ),
@@ -63,11 +70,15 @@ function(input,output){
     id = "inspect",
     tabPanel(
     "Plot Raw Data",
-    "Use this area to explore your data data",
-    box(uiOutput("inspectplot_x")),
-    box(uiOutput("inspectplot_y")),
-    plotOutput("inspectplot",
-               height = "300px"),
+    br(),
+    "Use this area to explore your raw data",
+    uiOutput("raw_plot_x"),
+    uiOutput("raw_plot_y"),
+    uiOutput("raw_plot_fill"),
+    uiOutput("raw_plot_facet"),
+    actionButton("plot_raw","Plot Data"),
+    checkboxInput("raw_factorfill","Convert Color Variable to Categorical?", value = FALSE),
+    plotOutput("raw_plot"),
     br(),
     br()
     ),
@@ -93,6 +104,7 @@ function(input,output){
           uiOutput("cov_var_1"),
           uiOutput("cov_var_2"),
           uiOutput("cov_var_3"))),
+    fluidRow(downloadButton("download_coverage", "Download Data Coverage Summary")),
     fluidRow(plotOutput("data_tally_plot")),
     fluidRow(dataTableOutput("data_tally")),
     fluidRow(
@@ -100,7 +112,7 @@ function(input,output){
       "Use this area to bin your length data by different groups. For example, you can count the total number of individuals in each length bin by year and month and region",
       uiOutput("select_groupers"),
       "Use this area to specify a bin width for your length data (unless your data are already binned)",
-      numericInput("bin_width","Length Bin Width", min = 0, value = NA),
+      sliderInput("bin_width","Length Bin Width", min = 0, value = 1, max = 20, step = 0.25),
       actionButton("group","Aggregate Data"),
       dataTableOutput("grouped_lcomps"),
       downloadButton("download_grouper", "Download Aggregated Data"),
@@ -108,16 +120,13 @@ function(input,output){
     ),
     fluidRow(
       box(title = "Plot Aggregated Length Data", width = 12,solidHeader = TRUE, collapsible = TRUE,
-      "Use this area to examine your aggregated data",
-      box(uiOutput("grouped_plot_x")),
-      box(uiOutput("grouped_plot_y")),
-      box(uiOutput("grouped_plot_fill")),
-      box(uiOutput("grouped_plot_facet")),
+      "Use this area to examine your aggregated length data",
+      uiOutput("grouped_plot_fill"),
+      uiOutput("grouped_plot_facet"),
       checkboxInput("factorfill","Convert Color Variable to Categorical?", value = FALSE),
-      actionButton("plot_groupers","Plot Aggregated Data"),
-      plotOutput("lcomp_plot"),
-      plotOutput("group_plot")
-      )
+      actionButton("plot_groupers","Plot Length Composition Data"),
+      plotOutput("lcomp_plot")
+     )
     )
     ) # close lcomps tab
   )

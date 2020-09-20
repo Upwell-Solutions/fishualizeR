@@ -53,16 +53,23 @@ grouped_plotter <- function(data,
 
 
   } else {
+
+    if (is.numeric(data[[x]])){
+      stat_name = "bin"
+    } else {
+      stat_name = "count"
+    }
+
     if (!is.na(fill)) {
       data %>%
         ggplot(aes(x = .data[[x]], fill = .data[[fill]])) +
-        geom_histogram() +
+        geom_histogram(stat = stat_name) +
         facet_wrap(vars(.data[[facet]]), scales = scales) +
         theme_minimal()
     } else  {
       data %>%
         ggplot(aes(x = .data[[x]])) +
-        geom_histogram() +
+        geom_histogram(stat = stat_name) +
         facet_wrap(vars(.data[[facet]]), scales = scales) +
         theme_minimal()
 
