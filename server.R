@@ -8,11 +8,27 @@ funs <- list.files(here::here("R"))
 
 walk(funs, ~ source(here::here("R", .x)))
 
+getInvLabelCol <- function(column){
+  colName <- switch(column,
+         "None" = "None",
+         "Source Name" = "source_name",
+         "Institution" = "institution",
+         "Fleet" = "fleet")
+  return(colName)
+}
+
+removeNAsByCol <- function(data, desiredCols) {
+  completeVec <- complete.cases(data[, desiredCols])
+  return(data[completeVec, ])
+}
+
 server <- function(input, output, session) {
 
   # length composition ------------------------------------------------------
 
   ldata <- reactiveValues(lcomps = NA)
+  dataInv <- reactiveValues(inv = NA)
+  dataStore <- reactiveValues()
 
   tmp <- reactive({
 
@@ -44,6 +60,376 @@ server <- function(input, output, session) {
 
 
   })
+  
+  readDataInv <- reactive({ #TODO: validate that is xlsx
+
+    readDataInv <- read_excel(input$dataInvFile$datapath, sheet = "DataInventory")
+
+  })
+  
+  observeEvent(input$dataInvFile, {
+    dataInv$inv <- readDataInv() %>%
+      janitor::clean_names()
+    dataInv$timeline <- readTimeline() %>%
+      janitor::clean_names()
+
+  })
+  
+  readTimeline <- reactive({
+    
+    readTimeline <- read_excel(input$dataInvFile$datapath, sheet = "Timeline")
+    
+  })
+  
+  observeEvent(input$LHParamFile, {
+    dataInv$vonBParams <- readvonBParams()
+    dataInv$natMortParams <- readNatMortParams()
+    dataInv$maturityParams <- readMaturityParams()
+    dataInv$lenWeightParams <- readLenWeightParams()
+    
+  })
+  
+  readvonBParams <- reactive({
+    
+    readvonBParams <- read_excel(input$LHParamFile$datapath, sheet = "vonBert")
+    
+  })
+  
+  readNatMortParams <- reactive({
+    
+    readNatMortParams <- read_excel(input$LHParamFile$datapath, sheet = "Mortality")
+    
+  })
+  
+  readMaturityParams <- reactive({
+    
+    readMaturityParams <- read_excel(input$LHParamFile$datapath, sheet = "Maturity")
+    
+  })
+  readLenWeightParams <- reactive({
+    
+    readLenWeightParams <- read_excel(input$LHParamFile$datapath, sheet = "LW")
+    
+  })
+  
+  observeEvent(input$dataFile, { #TODO: handle both csv and xlsx? no xlsx is too slow
+    dataStore$d <- readDataFile()
+  })
+  
+  readDataFile <- reactive({
+    req(input$dataFile)
+    readDataFile <- read.csv(input$dataFile$datapath)
+    
+  })
+  
+  output$uploadColTypes <- renderTable({
+    fileSummary <- data.frame("Column_Name" = colnames(dataStore$d), "Data_Type"=unlist(map(dataStore$d,class),use.names = FALSE))
+    colnames(fileSummary)[1] <- "Column Name"
+    colnames(fileSummary)[2] <- "Data Type"
+    return(fileSummary)
+  })
+  
+  output$uploadSummary <- renderTable({
+    sumTable <- data.frame(c("Number of Columns", "Number of Rows"), c(length(dataStore$d), nrow(dataStore$d)))
+    return(sumTable)
+  }, colnames = FALSE)
+  
+  output$uploadDataHead <- renderTable({
+    head(dataStore$d)
+  })
+  
+  output$dataFileUploaded <- reactive({
+    return(!is.null(dataStore$d))
+  })
+  
+  outputOptions(output, 'dataFileUploaded', suspendWhenHidden=FALSE)
+  
+  output$selectUniqueCol <- renderUI({
+    
+    vars <- colnames(dataStore$d) #[map_lgl(dataStore$d, is.character)]
+    
+    #vars <- c(NA,vars)
+    
+    selectizeInput("selectUniqueCol",
+                   "Select the column to see unique values",
+                   vars)
+  })
+
+  output$uniqueValues <- renderDataTable({
+    req(input$selectUniqueCol)
+    uniqueVals <- count(dataStore$d, !!sym(input$selectUniqueCol))
+    return(uniqueVals)
+  })
+  
+  output$missingValueCountText <- renderText({
+    return(paste0("Missing values: ", sum(is.na(dataStore$d[input$selectUniqueCol]))))
+  })
+  
+  output$uniqueValuesBarPlot <- renderPlot({
+    #uniqueVals <- count(dataStore$d, !!sym(input$selectUniqueCol))
+    uniqueValsBarPlot <- ggplot(dataStore$d, aes(x=factor(!!sym(input$selectUniqueCol)))) +
+      geom_bar()
+    
+    return(uniqueValsBarPlot)
+  })
+  
+  output$selectUnivariateNumberCol <- renderUI({
+    vars <- colnames(dataStore$d[map_lgl(dataStore$d, is.numeric)]) #TODO: some numeric columns have 'ND' or similar. discuss with Ricky, maybe if you don't see if then it has text and need to go clean, replace with NA/blank values
+   # vars <- c(NA,vars)
+    selectizeInput("selectUnivariateNumberCol",
+                    "Select the column to see summary statistics (numeric columns only)",
+                    vars)
+  })
+  
+  univariateDF_NoNAs <- reactive({
+    colForSummary <- input$selectUnivariateNumberCol
+    univariateDF_NoNAs <- removeNAsByCol(dataStore$d, colForSummary)
+  })
+  
+  output$summaryStatTable <- renderTable({
+    req(input$selectUnivariateNumberCol)
+    # if(input$selectUnivariateNumberCol != "NA"){
+      colForSummary <- input$selectUnivariateNumberCol
+      # df_NoNAs <- removeNAsByCol(dataStore$d, colForSummary)
+      df_NoNAs <- univariateDF_NoNAs()
+      summary(df_NoNAs[colForSummary])
+    # }
+  })
+  
+  output$univariatePlot <- renderPlot({
+    req(input$selectUnivariateNumberCol)
+    df_NoNAs <- univariateDF_NoNAs()
+    plotType <- input$uniPlotType
+    
+    if(plotType == "Histogram"){
+      plot <- ggplot(df_NoNAs, aes(x=!!sym(input$selectUnivariateNumberCol))) + geom_histogram()
+    } else if(plotType == "Box"){
+      plot <- ggplot(df_NoNAs, aes(x=factor(0), y=!!sym(input$selectUnivariateNumberCol))) + geom_boxplot() +
+                       scale_x_discrete(breaks = NULL) +
+                       xlab(NULL)
+    } else if(plotType == "Violin"){
+      plot <- ggplot(df_NoNAs, aes(x=factor(0), y=!!sym(input$selectUnivariateNumberCol))) + geom_violin() +
+        scale_x_discrete(breaks = NULL) +
+        xlab(NULL)
+    } else if(plotType == "Density"){
+      plot <- ggplot(df_NoNAs, aes(x=!!sym(input$selectUnivariateNumberCol))) + geom_density() 
+    }
+    
+    return(plot)
+  })
+  
+  output$invGearFilter <- renderUI({
+    req(input$dataInvFile)
+    vars <- c(NA, unique(dataInv$inv$gear))
+    selectInput("invGear",
+                "Filter by a gear?",
+                vars,
+                multiple = FALSE)
+  })
+  
+  output$invAreaFilter <- renderUI({
+    req(input$dataInvFile)
+    vars <- c(NA, unique(dataInv$inv$area))
+    selectInput("invArea",
+                "Filter by area?",
+                vars,
+                multiple = FALSE)
+  })
+  
+  output$invUnitsFilter <- renderUI({
+    req(input$dataInvFile)
+    vars <- c(NA, unique(dataInv$inv$units))
+    selectInput("invUnits",
+                "Filter by unit?",
+                vars,
+                multiple = FALSE)
+  })
+  
+  output$invSectorFilter <- renderUI({
+    req(input$dataInvFile)
+    vars <- c(NA, unique(dataInv$inv$sector))
+    selectInput("invSector",
+                "Filter by a sector?",
+                vars,
+                multiple = FALSE)
+  })
+  
+  output$dataInvTimeline <-
+    renderPlot({
+      req(input$dataInvFile)
+      View(dataInv$inv)
+      inventoryData <- dataInv$inv %>% mutate(rowID = paste(data_source, sector, sep="_"))
+      if(input$inventoryFilterAvailable){
+        inventoryData <- filter(inventoryData, available=="Yes")
+      }
+      if(input$invGear != "NA"){
+        inventoryData <- filter(inventoryData, gear==input$invGear)
+      }
+      if(input$invArea != "NA"){
+        inventoryData <- filter(inventoryData, area==input$invArea)
+      }
+      if(input$invUnits != "NA"){
+        inventoryData <- filter(inventoryData, units==input$invUnits)
+      }
+      if(input$invSector != "NA"){
+        inventoryData <- filter(inventoryData, sector==input$invSector)
+      }
+      if(input$inventoryFilterEvents){
+        eventData <- NA
+      } else {
+        eventData <- dataInv$timeline
+        eventData$data_type_category <- "Events"
+        colnames(eventData)[1] <- "data_source"
+        eventData$rowID <- eventData$data_source
+      }
+      combinedTimelineData <- merge(inventoryData, eventData, all = TRUE) %>%
+        mutate(end_year = if_else(!is.na(end_year), as.Date(paste0(end_year, "-12-31")), as.Date(paste0(start_year, "-12-31")))) %>% #set any na value to the end of the start year so it shows on graph
+        mutate(start_year = as.Date(paste0(start_year, "-01-01"))) 
+        
+                 
+        # mutate(end_date = as.Date(if_else(as.Date(as.character(end_date)) - as.Date(as.character(start_date)) < 30,
+        #                                   as.character(as.Date(as.character(end_date))+30),
+        #                                   as.character(end_date))))
+      # rowLabelCol <- getInvLabelCol(input$inventoryRowLabel) #event = combinedTimelineData[[rowLabelCol]]
+      # inlineLabelCol <- getInvLabelCol(input$inventoryInlineLabel)
+      View(combinedTimelineData)
+      plot_timeline(event = combinedTimelineData$rowID,
+                    start = combinedTimelineData$start_year,
+                    end = combinedTimelineData$end_year,
+                    #label = combinedTimelineData$fleet,
+                    group = combinedTimelineData$data_type_category,
+                    title = "Timeline of Data",
+                    subtitle = "Fishery X",
+                    save = FALSE)
+    })
+  
+  output$vonBertGrowthPlot <- renderPlot({
+    req(input$LHParamFile)
+    vonBParams <- dataInv$vonBParams
+    paramDF <- data.frame(vonBParams, group = as.character(1:length(vonBParams$Linf)))
+    vonBerteq = function(x, Linf, k, t0){Linf*(1-exp(-k*(x-t0)))}
+    x <- seq(0,20,1)
+    vonBFunc_data <- lapply(1:nrow(paramDF),function(i) {
+      args <- paramDF[i,c("Linf","k","t0")]
+      data.frame(row=paramDF$group[i],
+                 x=x,
+                 y=do.call(vonBerteq,c(list(x=x),args)),
+                 Area=paramDF$Area[i],
+                 Sex=paramDF$Sex[i],
+                 Methodology=paramDF$Methodology[i])
+    }) %>% bind_rows
+    vonBPlot <- ggplot(vonBFunc_data,aes(x=x,y=y,colour=row)) + geom_line(lwd=1.5) + labs(title="von Bertalanffy Growth Curves", x = "Years", y="Length")
+    if(input$LHParamFacet != "None"){
+       vonBPlot <- vonBPlot + facet_wrap(input$LHParamFacet)
+    }
+    return(vonBPlot)
+    
+  })
+  
+  output$vonBertTable <- renderTable({
+    req(input$LHParamFile)
+    vonBParams <- dataInv$vonBParams
+    #paramDF <- data.frame(Linf = vonBParams$Linf, k= vonBParams$k, t0 = vonBParams$t0, row = as.character(1:length(vonBParams$Linf)))
+    return(vonBParams)
+  })
+  
+  output$maturityPlot <- renderPlot({
+    req(input$LHParamFile)
+    mateq <- function(x, L50, L95){1 / (1+exp(-log(19)*((x-L50)/(L95-L50))))}
+    matData <- dataInv$maturityParams
+    #TODO: determine label for lines
+    matParamDF <- data.frame(matData, row = as.character(1:length(matData$L50)))
+    x <- seq(0,150,1) #TODO: get max size to plot
+    matFunc_data <- lapply(1:nrow(matParamDF),function(i) {
+      args <- matParamDF[i,c("L50","L95")]
+      data.frame(row=matParamDF$row[i],
+                 x=x,
+                 y=do.call(mateq,c(list(x=x),args)),
+                 Area=matParamDF$Area[i],
+                 Sex=matParamDF$Sex[i],
+                 Methodology=matParamDF$Methodology[i])
+    }) %>% bind_rows
+    matPlot <- ggplot(matFunc_data,aes(x=x,y=y,colour=row)) + geom_line(lwd=1.5) +
+      labs(title="Maturity Curves", x = "Length", y="% Mature")
+    
+    if(input$LHParamFacet != "None"){
+      matPlot <- matPlot + facet_wrap(input$LHParamFacet)
+    }
+    
+    return(matPlot)
+  })
+  
+  output$maturityTable <- renderTable({
+    req(input$LHParamFile)
+    #mateq <- function(x, L50, L95){1 / (1+exp(-log(19)*((x-L50)/(L95-L50))))}
+    matData <- dataInv$maturityParams
+    #TODO: determine label for lines
+    #matParamDF <- data.frame(L50 = matData$L50, L95= matData$L95, row = as.character(1:length(matData$L50)))
+    return(matData)
+  })
+  
+  output$lengthWeightPlot <- renderPlot({
+    req(input$LHParamFile)
+    LWeq <- function(x, a, b){a*x^b}
+    lwData <- dataInv$lenWeightParams
+
+    lwParamDF <- data.frame(lwData, row = as.character(1:nrow(lwData)))
+    # TODO: determine line label
+    #LWline1Label <- paste(test$Reference[1], test$Sex[1], test$Area[1], sep="_")
+    x <- seq(0,100,1) #TODO: what should be max length
+    lwFunc_data <- lapply(1:nrow(lwParamDF),function(i) {
+      args <- lwParamDF[i,c("a","b")]
+      data.frame(row=lwParamDF$row[i],
+                 x=x,
+                 y=do.call(LWeq,c(list(x=x),args)),
+                 Area=lwData$Area[i],
+                 Sex=lwData$Sex[i],
+                 Methodology=lwData$Methodology[i])
+    }) %>% bind_rows
+    
+    lenWeightPlot <- ggplot(lwFunc_data,aes(x=x,y=y,colour=row)) + geom_line(lwd=1.5) +
+      labs(title="Length-Weight Curves", x = "Length", y="Weight")
+    
+    if(input$LHParamFacet != "None"){
+      lenWeightPlot <- lenWeightPlot + facet_wrap(input$LHParamFacet)
+    }
+    
+    return(lenWeightPlot)
+  })
+  
+  output$lengthWeightTable <- renderTable({
+    req(input$LHParamFile)
+    LWeq <- function(x, a, b){a*x^b}
+    lwData <- dataInv$lenWeightParams
+    
+    return(lwData)
+  })
+  
+  output$natMortPlot <- renderPlot({
+    req(input$LHParamFile)
+    natMortData <- dataInv$natMortParams
+    natMortDF <- data.frame(natMortData)
+    
+    natMortPlot <- ggplot(natMortDF, aes(x=Mortality)) + xlim(0,1) +
+      labs(title="Natural Mortality Density Plot", x = "Natural Mortality", y="Density")
+    
+    if(input$LHParamFacet != "None"){
+      facet <- sym(input$LHParamFacet)
+      natMortPlot <- natMortPlot + geom_density(alpha=.5) + aes(fill=!!facet)
+    } else{
+      natMortPlot <- natMortPlot + geom_density(alpha=.5, fill="lightblue")
+    }
+    
+    return(natMortPlot)
+  })
+  
+  output$natMortTable <- renderTable({
+    req(input$LHParamFile)
+    natMortData <- dataInv$natMortParams
+    #natMortDF <- data.frame(M = natMortData$Mortality, sex = natMortData$Sex)
+    return(natMortData)
+  })
+
 
   tmp2 <- reactive({
 
@@ -162,7 +548,7 @@ output$colnames <- renderUI({
   if (input$example == FALSE){
     req(input$file)
   }
-  selectInput("colnames", "Select Columns To View", choices = colnames(ldata$lcomps), selected = colnames(ldata$lcomps)[1:pmin(10, ncol(ldata$lcomps))],multiple = TRUE)
+  selectInput("colnames", "Select Columns To View", choices = colnames(ldata$lcomps), selected = colnames(ldata$lcomps)[1:pmin(10, ncol(ldata$lcomps))],multiple = TRUE, selectize = TRUE)
 
 })
 
@@ -175,6 +561,104 @@ output$colnames <- renderUI({
       ldata$lcomps[,input$colnames]},
                     filter = "top",
                     options = list(pageLength = 5, autoWidth = TRUE))
+  
+  # output$dataInvTable <-
+  #   renderDataTable({
+  #     req(input$dataInvFile)
+  #     dataInv$inv},
+  #     filter = "top",
+  #     options = list(pageLength = 5, autoWidth = TRUE))
+  
+  
+####**********multivariate plotting (adapted from raw_plot)************
+  # inspect raw data
+  
+  output$multi_plot_x <- renderUI({
+    vars <- c("Select one" = "", colnames(dataStore$d))
+    selectInput("multi_x",
+                "Choose what to plot on x-axis",
+                vars,
+                multiple = FALSE)
+  })
+  
+  output$multi_plot_y <- renderUI({
+    vars <- c(NA,  colnames(dataStore$d))
+    selectInput("multi_y",
+                "Choose what to plot on y-axis",
+                vars,
+                multiple = FALSE)
+  })
+  
+  output$multi_plot_fill <- renderUI({
+    vars <- c(NA, colnames(dataStore$d))
+    selectInput("multi_fill",
+                "Choose what to color by",
+                vars,
+                multiple = FALSE)
+  })
+  
+  output$multi_plot_facet <- renderUI({
+    vars <- c(NA, colnames(dataStore$d))
+    selectInput("multi_facet",
+                "Choose what to facet by",
+                vars,
+                multiple = FALSE)
+  })
+  
+  multi_plot <- eventReactive(input$multi_plot_button, {
+    grouped_plotter(
+      dataStore$d,
+      x = input$multi_x,
+      y = input$multi_y,
+      fill = input$multi_fill,
+      facet = input$multi_facet,
+      factorfill = input$multi_factorfill,
+      scales = input$multi_scales
+    )
+  })
+  
+  output$multi_plot <- renderPlot(
+    withProgress(message = 'Generating plot', value = 0, {
+      multi_plot()
+    })
+  )
+  
+  multi_table <- eventReactive(input$multi_plot_button,{
+    pt <- PivotTable$new()
+    pt$addData(removeNAsByCol(dataStore$d, input$multi_x))
+    if(input$multi_fill != "NA"){
+      pt$addRowDataGroups(input$multi_fill)
+    }
+    if(input$multi_facet != "NA"){
+      pt$addColumnDataGroups(input$multi_facet)
+    }
+    
+    pt$defineCalculation(calculationName="Count", summariseExpression="n()")
+    
+    if(input$pivotTableStatInput == "mean"){
+      pt$defineCalculation(calculationName="Mean", summariseExpression=paste0("round(mean(",input$multi_x,"),2)"))
+    } else if(input$pivotTableStatInput == "quantiles"){
+      pt$defineCalculation(calculationName="Min", summariseExpression=paste0("min(",input$multi_x,")"))
+      pt$defineCalculation(calculationName="Median", summariseExpression=paste0("median(",input$multi_x,")"))
+      pt$defineCalculation(calculationName="Max", summariseExpression=paste0("max(",input$multi_x,")"))
+    } else if(input$pivotTableStatInput == "sd"){
+      pt$defineCalculation(calculationName="Std. Dev.", summariseExpression=paste0("round(sd(",input$multi_x,"),2)"))
+    }
+    
+    
+    
+    pt$evaluatePivot()
+    pivottabler(pt)
+  })
+  
+  output$multi_table <- renderPivottabler({
+    withProgress(message = 'Generating table', value = 0, {
+      multi_table()
+    })
+    
+  })
+
+####end multivariate plotting
 
 
   # inspect raw data
