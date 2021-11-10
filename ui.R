@@ -104,12 +104,11 @@ function(input,output){
             )
             #tableOutput("uploadSummary")
     ), #close dataUpload tab
-    #TODO: add how many missing values or NAs
     tabItem(tabName = "UniCategorical",
               conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
               conditionalPanel("output.dataFileUploaded == true",
                 uiOutput("selectUniqueCol"),
-                fluidRow(textOutput("missingValueCountText")), br(),
+                fluidRow(textOutput("uniCatMissingValueCountText")), br(),
                 fluidRow(dataTableOutput("uniqueValues")),
                 fluidRow(plotOutput("uniqueValuesBarPlot"))
               )
@@ -118,6 +117,7 @@ function(input,output){
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
               fluidRow(uiOutput("selectUnivariateNumberCol"), selectInput("uniPlotType", "Choose plot type:", c("Histogram", "Density", "Box", "Violin"))),
+              fluidRow(tableOutput("uniNumMissingValueCountText")), br(),
               fluidRow(column(3,tableOutput("summaryStatTable")), column(9, plotOutput("univariatePlot")))
             )
     ), #close UniNumerical tab

@@ -161,9 +161,18 @@ server <- function(input, output, session) {
     return(uniqueVals)
   })
   
-  output$missingValueCountText <- renderText({
+  output$uniCatMissingValueCountText <- renderText({
     return(paste0("Missing values: ", sum(is.na(dataStore$d[input$selectUniqueCol]))))
   })
+  
+  output$uniNumMissingValueCountText <- renderTable({
+    numMissingVals <- sum(is.na(dataStore$d[input$selectUnivariateNumberCol]))
+    totalRows <- nrow(dataStore$d)
+    numDataRows <- totalRows - numMissingVals
+    
+    missingTable <- data.frame(c("Rows with Data", "Rows Missing Values", "Total Rows"), c(numDataRows, numMissingVals, totalRows))
+    return(missingTable)
+  }, colnames = FALSE)
   
   output$uniqueValuesBarPlot <- renderPlot({
     #uniqueVals <- count(dataStore$d, !!sym(input$selectUniqueCol))
@@ -192,9 +201,16 @@ server <- function(input, output, session) {
       colForSummary <- input$selectUnivariateNumberCol
       # df_NoNAs <- removeNAsByCol(dataStore$d, colForSummary)
       df_NoNAs <- univariateDF_NoNAs()
-      summary(df_NoNAs[colForSummary])
+      min <- min(df_NoNAs[[colForSummary]])
+      max <- max(df_NoNAs[[colForSummary]])
+      median <- median(df_NoNAs[[colForSummary]])
+      mean <- mean(df_NoNAs[[colForSummary]])
+      sd <- sd(df_NoNAs[[colForSummary]])
+      #summary(df_NoNAs[colForSummary])
+      summaryTable <- data.frame(c("Min", "Max", "Median", "Mean", "Std. Dev."), c(min, max, median, mean, sd))
+      return(summaryTable)
     # }
-  })
+  }, colnames = FALSE)
   
   output$univariatePlot <- renderPlot({
     req(input$selectUnivariateNumberCol)
@@ -222,7 +238,7 @@ server <- function(input, output, session) {
     req(input$dataInvFile)
     vars <- c(NA, unique(dataInv$inv$gear))
     selectInput("invGear",
-                "Filter by a gear?",
+                "Filter by gear?",
                 vars,
                 multiple = FALSE)
   })
@@ -249,7 +265,7 @@ server <- function(input, output, session) {
     req(input$dataInvFile)
     vars <- c(NA, unique(dataInv$inv$sector))
     selectInput("invSector",
-                "Filter by a sector?",
+                "Filter by sector?",
                 vars,
                 multiple = FALSE)
   })
@@ -278,7 +294,7 @@ server <- function(input, output, session) {
         eventData <- NA
       } else {
         eventData <- dataInv$timeline
-        eventData$data_type_category <- "Events"
+        eventData$data_type_category <- "Major Events"
         colnames(eventData)[1] <- "data_source"
         eventData$rowID <- eventData$data_source
       }
@@ -299,7 +315,7 @@ server <- function(input, output, session) {
                     #label = combinedTimelineData$fleet,
                     group = combinedTimelineData$data_type_category,
                     title = "Timeline of Data",
-                    subtitle = "Fishery X",
+                    subtitle = "",
                     save = FALSE)
     })
   
