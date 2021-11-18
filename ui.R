@@ -52,8 +52,8 @@ function(input,output){
       #          menuSubItem("2 Numerical Data", tabName = "Multi2Numeric", icon = icon("chart-line"))
       # ),
       menuItem("Multivariate Data Exploration", tabName = "Multivariate", icon = icon("chart-line")),
-      menuItem("Data Coverage", tabName = "dataCoverage", icon = icon("percent")),
-      menuItem("General Data Exploration",tabName = "lcomps", icon = icon("chart-line"))
+      menuItem("Data Coverage", tabName = "dataCoverage", icon = icon("percent"))#,
+      #menuItem("General Data Exploration",tabName = "lcomps", icon = icon("chart-line"))
       #menuItem("CPUE",tabName = "cpue", icon = icon("chart-line"))
     )) # close dashboardSidebar
 
@@ -70,14 +70,10 @@ function(input,output){
     tabItem(tabName = "inventory",
             fluidRow(
               box(title = "Load Data Inventory file", fileInput("dataInvFile", NULL), width = 12)),
-            fluidRow(column(4, checkboxInput("inventoryFilterAvailable", "Show only available data sources?"),
-                               checkboxInput("inventoryFilterEvents", "Hide Events Timeline?")),
-                    column(4, uiOutput("invGearFilter"), uiOutput("invAreaFilter")),
-                    column(4, uiOutput("invUnitsFilter"), uiOutput("invSectorFilter"))),
-                     # column(4, selectInput("inventoryRowLabel", "What to use as the row label?", 
-                     #                       c("Source Name", "Institution", "Fleet"), selected = "Source Name")),
-                     # column(4,selectInput("inventoryInlineLabel", "What to use as the inline label",
-                     #                      c("None", "Source Name", "Institution", "Fleet"), selected = "Fleet"))),
+            fluidRow(column(4, selectInput("invDataCat", "Which data category to use?", c("Summary", "Catch" = "Catch", "Effort" = "Effort", "Abundance" = "Abundance", "Length" = "Length composition"))),
+                     column(4,checkboxInput("inventoryFilterAvailable", "Show only available data sources?"),
+                              checkboxInput("inventoryFilterEvents", "Hide Events Timeline?")),
+                     column(4, uiOutput("timelineValues"))),
             fluidRow(plotOutput("dataInvTimeline"))
     ), #close inventory tab
     
