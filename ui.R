@@ -113,17 +113,22 @@ function(input,output){
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
               fluidRow(uiOutput("selectUnivariateNumberCol"), selectInput("uniPlotType", "Choose plot type:", c("Histogram", "Density", "Box", "Violin"))),
-              fluidRow(tableOutput("uniNumMissingValueCountText")), br(),
+              fluidRow(tableOutput("uniNumMissingValueCountText")), br(), #check if converts "NA" to actual NA values in R, not as strings
               fluidRow(column(3,tableOutput("summaryStatTable")), column(9, plotOutput("univariatePlot")))
             )
     ), #close UniNumerical tab
     tabItem(tabName = "UniDate",
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
-                             h4("Under construction")
-                             #TODO: choose single date or range
-                             # select columns for day, month, year
-                             # add date table/graphs
+              fluidRow(h5("The section requires dates to be formatted into 3 columns: Day, Month, Year. All need to be in numerical format. Years must be 4 digits."), checkboxInput("dateRangeCheckbox", "Is this a date range?")),
+              fluidRow(column(4,h5("Select the values for the date:"), uiOutput("selectDateYear"), uiOutput("selectDateMonth"), uiOutput("selectDateDay")),
+                       conditionalPanel("input.dateRangeCheckbox == true",
+                          column(4,h5("Select the values for the ending date:"), uiOutput("selectEndDateYear"), uiOutput("selectEndDateMonth"), uiOutput("selectEndDateDay")))),
+              fluidRow(actionButton("date_plot_button","Plot Dates")),
+              fluidRow(column(6, plotOutput("startDatePlot")), conditionalPanel("input.dateRangeCheckbox == true",column(6, plotOutput("endDatePlot")))),
+              conditionalPanel("input.dateRangeCheckbox == true",
+                               fluidRow(plotOutput("dateRangePlot")))
+              #TODO: handle non numeric and blank values; causes error compiling the date column
             )
     ), #close UniDate tab
     # tabItem("Multi1Numeric",
@@ -157,7 +162,20 @@ function(input,output){
                              pivottablerOutput("multi_table")
             )
     ), #close Multivariate tab
-    tabItem(tabName = "dataCoverage", "Under Construction"),
+    tabItem(tabName = "dataCoverage", 
+              conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),  
+              conditionalPanel("output.dataFileUploaded == true",
+                fluidRow(
+                  box(title = "Assess Data Coverage", width = 12, solidHeader = TRUE, collapsible = TRUE,
+                      "Use this area to assess your data coverage",
+                      uiOutput("dataCoverageVar"),
+                      uiOutput("dataCoverageGroup1"),
+                      uiOutput("dataCoverageGroup2"),
+                      uiOutput("dataCoverageMetric"))),
+                fluidRow(downloadButton("download_coverage", "Download Data Coverage Summary")),
+                fluidRow(plotOutput("data_tally_plot")),
+                fluidRow(dataTableOutput("data_tally"))),
+            ),
     tabItem(tabName = "lcomps",
       checkboxInput("example","Check this box to use example data instead of uploading data"),
       fluidRow(h4("Go through and fill out the various options in different sections. Leave as NA anything that you don't want to plot.")),
@@ -209,15 +227,15 @@ function(input,output){
       ),
       width = 12)
       ), # close inspect fluidrow
-      fluidRow(
-        box(title = "Assess Data Coverage", width = 12, solidHeader = TRUE, collapsible = TRUE,
-            "Use this area to assess your data coverage",
-            uiOutput("cov_var_1"),
-            uiOutput("cov_var_2"),
-            uiOutput("cov_var_3"))),
-      fluidRow(downloadButton("download_coverage", "Download Data Coverage Summary")),
-      fluidRow(plotOutput("data_tally_plot")),
-      fluidRow(dataTableOutput("data_tally")),
+     #  fluidRow(
+     #    box(title = "Assess Data Coverage", width = 12, solidHeader = TRUE, collapsible = TRUE,
+     #        "Use this area to assess your data coverage",
+     #        uiOutput("cov_var_1"),
+     #        uiOutput("cov_var_2"),
+     #        uiOutput("cov_var_3"))),
+     # # fluidRow(downloadButton("download_coverage", "Download Data Coverage Summary")),
+     #  fluidRow(plotOutput("data_tally_plot_old")),
+     #  fluidRow(dataTableOutput("data_tally_old")),
       fluidRow(
         box(title = "Aggregate Length Data", width = 12,solidHeader = TRUE, collapsible = TRUE,
         "Use this area to bin your length data by different groups. For example, you can count the total number of individuals in each length bin by year and month and region",

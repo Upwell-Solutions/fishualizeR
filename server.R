@@ -157,7 +157,8 @@ server <- function(input, output, session) {
 
   output$uniqueValues <- renderDataTable({
     req(input$selectUniqueCol)
-    uniqueVals <- count(dataStore$d, !!sym(input$selectUniqueCol))
+    uniqueVals <- count(dataStore$d, !!sym(input$selectUniqueCol)) %>%
+      rename(Count = n)
     return(uniqueVals)
   })
   
@@ -234,41 +235,95 @@ server <- function(input, output, session) {
     return(plot)
   })
   
-  output$invGearFilter <- renderUI({
-    req(input$dataInvFile)
-    vars <- c(NA, unique(dataInv$inv$gear))
-    selectInput("invGear",
-                "Filter by gear?",
-                vars,
-                multiple = FALSE)
+  output$selectDateDay <- renderUI({
+    vars <- colnames(dataStore$d) 
+
+    selectizeInput("selectDateDay",
+                   "Day:",
+                   vars)
   })
   
-  output$invAreaFilter <- renderUI({
-    req(input$dataInvFile)
-    vars <- c(NA, unique(dataInv$inv$area))
-    selectInput("invArea",
-                "Filter by area?",
-                vars,
-                multiple = FALSE)
+  output$selectDateMonth <- renderUI({
+    vars <- colnames(dataStore$d) 
+    
+    selectizeInput("selectDateMonth",
+                   "Month:",
+                   vars)
   })
   
-  output$invUnitsFilter <- renderUI({
-    req(input$dataInvFile)
-    vars <- c(NA, unique(dataInv$inv$units))
-    selectInput("invUnits",
-                "Filter by unit?",
-                vars,
-                multiple = FALSE)
+  output$selectDateYear <- renderUI({
+    vars <- colnames(dataStore$d) 
+    
+    selectizeInput("selectDateYear",
+                   "Year:",
+                   vars)
   })
   
-  output$invSectorFilter <- renderUI({
-    req(input$dataInvFile)
-    vars <- c(NA, unique(dataInv$inv$sector))
-    selectInput("invSector",
-                "Filter by sector?",
-                vars,
-                multiple = FALSE)
+  output$selectEndDateDay <- renderUI({
+    vars <- colnames(dataStore$d) 
+    
+    selectizeInput("selectEndDateDay",
+                   "End Day:",
+                   vars)
   })
+  
+  output$selectEndDateMonth <- renderUI({
+    vars <- colnames(dataStore$d) 
+    
+    selectizeInput("selectEndDateMonth",
+                   "End Month:",
+                   vars)
+  })
+  
+  output$selectEndDateYear <- renderUI({
+    vars <- colnames(dataStore$d) 
+    
+    selectizeInput("selectEndDateYear",
+                   "End Year:",
+                   vars)
+  })
+  # 
+  # multi_plot <- eventReactive(input$multi_plot_button, {
+  #   grouped_plotter(
+  #     dataStore$d,
+  #     x = input$multi_x,
+  #     y = input$multi_y,
+  #     fill = input$multi_fill,
+  #     facet = input$multi_facet,
+  #     factorfill = input$multi_factorfill,
+  #     scales = input$multi_scales
+  #   )
+  # })
+  
+  startDatePlot <- eventReactive(input$date_plot_button, {
+    dataStore$d <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), !!sym(input$selectDateDay), sep = "-")))
+      plot <- ggplot(dataStore$d, aes(x=fishRStartDate)) + geom_histogram()
+      return(plot)
+    })
+  
+  output$startDatePlot <- renderPlot(
+    startDatePlot()
+  )
+  
+  endDatePlot <- eventReactive(input$date_plot_button, {
+    dataStore$d <- dataStore$d %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), !!sym(input$selectEndDateDay), sep = "-")))
+    plot <- ggplot(dataStore$d, aes(x=fishREndDate)) + geom_histogram()
+    return(plot)
+  })
+  
+  output$endDatePlot <- renderPlot(
+    endDatePlot()
+  )
+  
+  dateRangePlot <- eventReactive(input$date_plot_button, {
+    dataStore$d <- dataStore$d %>% mutate(dateRange = fishREndDate - fishRStartDate)
+    plot <- ggplot(dataStore$d, aes(x=dateRange)) + geom_histogram()
+    return(plot)
+  })
+  
+  output$dateRangePlot <- renderPlot(
+    dateRangePlot()
+  )
   
   output$dataInvTimeline <-
     renderPlot({
@@ -379,7 +434,7 @@ server <- function(input, output, session) {
                  Sex=paramDF$Sex[i],
                  Methodology=paramDF$Methodology[i])
     }) %>% bind_rows
-    vonBPlot <- ggplot(vonBFunc_data,aes(x=x,y=y,colour=row)) + geom_line(lwd=1.5) + labs(title="von Bertalanffy Growth Curves", x = "Years", y="Length")
+    vonBPlot <- ggplot(vonBFunc_data,aes(x=x, y=y, colour=row, linetype=Sex)) + geom_line(lwd=1.1) + labs(title="von Bertalanffy Growth Curves", x = "Years", y="Length")
     if(input$LHParamFacet != "None"){
        vonBPlot <- vonBPlot + facet_wrap(input$LHParamFacet)
     }
@@ -390,8 +445,8 @@ server <- function(input, output, session) {
   output$vonBertTable <- renderTable({
     req(input$LHParamFile)
     vonBParams <- dataInv$vonBParams
-    #paramDF <- data.frame(Linf = vonBParams$Linf, k= vonBParams$k, t0 = vonBParams$t0, row = as.character(1:length(vonBParams$Linf)))
-    return(vonBParams)
+    paramDF <- data.frame(row = as.character(1:length(vonBParams$Linf)),vonBParams)
+    return(paramDF)
   })
   
   output$maturityPlot <- renderPlot({
@@ -410,7 +465,7 @@ server <- function(input, output, session) {
                  Sex=matParamDF$Sex[i],
                  Methodology=matParamDF$Methodology[i])
     }) %>% bind_rows
-    matPlot <- ggplot(matFunc_data,aes(x=x,y=y,colour=row)) + geom_line(lwd=1.5) +
+    matPlot <- ggplot(matFunc_data,aes(x=x, y=y, colour=row, linetype=Sex)) + geom_line(lwd=1) +
       labs(title="Maturity Curves", x = "Length", y="% Mature")
     
     if(input$LHParamFacet != "None"){
@@ -425,8 +480,8 @@ server <- function(input, output, session) {
     #mateq <- function(x, L50, L95){1 / (1+exp(-log(19)*((x-L50)/(L95-L50))))}
     matData <- dataInv$maturityParams
     #TODO: determine label for lines
-    #matParamDF <- data.frame(L50 = matData$L50, L95= matData$L95, row = as.character(1:length(matData$L50)))
-    return(matData)
+    matParamDF <- data.frame(row = as.character(1:length(matData$L50)), matData)
+    return(matParamDF)
   })
   
   output$lengthWeightPlot <- renderPlot({
@@ -448,7 +503,7 @@ server <- function(input, output, session) {
                  Methodology=lwData$Methodology[i])
     }) %>% bind_rows
     
-    lenWeightPlot <- ggplot(lwFunc_data,aes(x=x,y=y,colour=row)) + geom_line(lwd=1.5) +
+    lenWeightPlot <- ggplot(lwFunc_data,aes(x=x, y=y, colour=row, linetype=Sex)) + geom_line(lwd=1) +
       labs(title="Length-Weight Curves", x = "Length", y="Weight")
     
     if(input$LHParamFacet != "None"){
@@ -462,8 +517,8 @@ server <- function(input, output, session) {
     req(input$LHParamFile)
     LWeq <- function(x, a, b){a*x^b}
     lwData <- dataInv$lenWeightParams
-    
-    return(lwData)
+    lwParamDF <- data.frame(row = as.character(1:length(lwData$a)), lwData)
+    return(lwParamDF)
   })
   
   output$natMortPlot <- renderPlot({
@@ -487,8 +542,8 @@ server <- function(input, output, session) {
   output$natMortTable <- renderTable({
     req(input$LHParamFile)
     natMortData <- dataInv$natMortParams
-    #natMortDF <- data.frame(M = natMortData$Mortality, sex = natMortData$Sex)
-    return(natMortData)
+    natMortDF <- data.frame(row = as.character(1:length(natMortData$Sex)), natMortData)
+    return(natMortDF)
   })
 
 
@@ -801,16 +856,149 @@ output$colnames <- renderUI({
 
   # assess data coverage
 
+  output$dataCoverageVar <- renderUI({
+    vars <- c("Select one" = "",colnames(dataStore$d))
+    selectizeInput("dataCoverageVar",
+                   "Select what to assess data coverage for: ",
+                   vars)
+  })
+  
+  output$dataCoverageGroup1 <- renderUI({
+    vars <- colnames(dataStore$d)
+    selectizeInput("dataCoverageGroup1",
+                   "Select 1st variable to assess coverage",
+                   vars)
+  })
+  
+  output$dataCoverageGroup2 <- renderUI({
+    vars <- c(NA, colnames(dataStore$d))
+    
+    selectizeInput("dataCoverageGroup2",
+                   "Select 2nd variable to assess coverage",
+                   vars)
+  })
+  
+  
+  output$dataCoverageMetric <- renderUI({
+    
+    req(input$dataFile)
+    req(input$dataCoverageVar)
+    tmp <- assess_coverage(
+      dataStore$d,
+      group_var1 = input$dataCoverageGroup1,
+      group_var2 = input$dataCoverageGroup2,
+      length_col = input$dataCoverageVar,
+      n_col = NA
+    ) %>%
+      dplyr::rename(
+        "# of Observations" = n,
+        "% of Total Observations" = pn,
+        "# of Non-Missing Observations" = n_present,
+        "% of Observations Missing" = p_missing
+      )
+    
+    
+    vars <-
+      c(colnames(tmp)[(which(colnames(tmp) == "# of Observations"):ncol(tmp))])
+    
+    selectInput("dataCoverageMetric",
+                "Select coverage metric to plot",
+                vars,
+                selected = "# of Observations")
+  })
+  
+  output$data_tally_plot <- renderPlot({
+    
+    # if (input$example == FALSE){
+    #   req(input$file)
+    # }
+    req(input$dataFile)
+    req(input$dataCoverageVar)
+    tmp <- assess_coverage(
+      dataStore$d,
+      group_var1 = input$dataCoverageGroup1,
+      group_var2 = input$dataCoverageGroup2,
+      length_col = input$dataCoverageVar,
+      n_col = NA #input$select_tally
+    ) %>%
+      dplyr::rename(
+        "# of Observations" = n,
+        "% of Total Observations" = pn,
+        "# of Non-Missing Observations" = n_present,
+        "% of Observations Missing" = p_missing
+      )
+    
+    axis_vars <-
+      colnames(tmp)[1:(which(colnames(tmp) == "# of Observations") - 1)]
+    
+    if (length(axis_vars) == 1) {
+      outplot <- tmp %>%
+        ggplot(aes(.data[[axis_vars[1]]], .data[[input$dataCoverageMetric]])) +
+        geom_col()
+      
+    } else {
+      outplot <- tmp %>%
+        ggplot(aes(.data[[axis_vars[1]]], .data[[axis_vars[2]]], fill = .data[[input$dataCoverageMetric]])) +
+        geom_tile() +
+        scale_fill_viridis_c()
+      
+      
+    }
+    
+    
+    outplot
+    
+  })
+  
+  cov_data <-   reactive({
+    
+    req(input$dataFile)
+    
+    assess_coverage(
+      dataStore$d,
+      group_var1 = input$dataCoverageGroup1,
+      group_var2 = input$dataCoverageGroup2,
+      length_col = input$dataCoverageVar
+    ) %>%
+      dplyr::mutate(pn = scales::percent(pn / 100, accuracy = 0.01)) %>%
+      dplyr::mutate(p_missing = scales::percent(p_missing / 100, accuracy = 0.01)) %>%
+      dplyr::rename(
+        "# of Observations" = n,
+        "% of Total Observations" = pn,
+        "# of Non-Missing Observations" = n_present,
+        "% of Observations Missing" = p_missing
+      )
+  })
+  
+  output$data_tally <- DT::renderDataTable(
+    {
+      
+      req(input$dataFile)
+      req(input$dataCoverageVar)
+      cov_data()
+    },
+    filter = "top",
+    options = list(pageLength = 5, autoWidth = TRUE)
+  )
+  
+  output$download_coverage <- downloadHandler(
+    filename = function() {
+      "data-coverage.csv"
+    },
+    content = function(file) {
+      vroom::vroom_write(cov_data(), file, ",")
+    }
+  )
+  
   output$cov_var_1 <- renderUI({
-    vars <- colnames( ldata$lcomps)
-
+    vars <- colnames(ldata$lcomps)
     selectizeInput("cov_var_1",
                    "Select 1st variable to assess coverage",
                    vars)
   })
 
   output$cov_var_2 <- renderUI({
-    vars <- c(NA, colnames( ldata$lcomps))
+    vars <- c(NA, colnames(ldata$lcomps))
 
     selectizeInput("cov_var_2",
                    "Select 2nd variable to assess coverage",
@@ -848,7 +1036,7 @@ output$colnames <- renderUI({
   })
 
 
-  output$data_tally_plot <- renderPlot({
+  output$data_tally_plot_old <- renderPlot({
 
     if (input$example == FALSE){
       req(input$file)
@@ -889,7 +1077,7 @@ output$colnames <- renderUI({
 
   })
 
-  cov_data <-   reactive({
+  cov_data_old <-   reactive({
 
     if (input$example == FALSE){
       req(input$file)
@@ -909,24 +1097,24 @@ output$colnames <- renderUI({
       "% of Observations Missing" = p_missing
     )})
 
-  output$data_tally <- DT::renderDataTable(
+  output$data_tally_old <- DT::renderDataTable(
     {
 
       if (input$example == FALSE){
         req(input$file)
       }
-      cov_data()
+      cov_data_old()
       },
     filter = "top",
     options = list(pageLength = 5, autoWidth = TRUE)
   )
 
-  output$download_coverage <- downloadHandler(
+  output$download_coverage_old <- downloadHandler(
     filename = function() {
       "data-coverage.csv"
     },
     content = function(file) {
-      vroom::vroom_write(cov_data(), file, ",")
+      vroom::vroom_write(cov_data_old(), file, ",")
     }
   )
 
