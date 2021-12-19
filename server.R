@@ -256,7 +256,8 @@ server <- function(input, output, session) {
     
     selectizeInput("selectDateYear",
                    "Year:",
-                   vars)
+                   vars,
+                   multiple = FALSE)
   })
   
   output$selectEndDateDay <- renderUI({
@@ -295,15 +296,19 @@ server <- function(input, output, session) {
   #   )
   # })
   
+
+  
   startDatePlot <- eventReactive(input$date_plot_button, {
     dataStore$d <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), !!sym(input$selectDateDay), sep = "-")))
       plot <- ggplot(dataStore$d, aes(x=fishRStartDate)) + geom_histogram()
       return(plot)
     })
   
-  output$startDatePlot <- renderPlot(
-    startDatePlot()
-  )
+
+  
+  output$dateTable <- renderTable({
+    dateTable()
+  }, colnames = FALSE)
   
   endDatePlot <- eventReactive(input$date_plot_button, {
     dataStore$d <- dataStore$d %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), !!sym(input$selectEndDateDay), sep = "-")))
@@ -316,8 +321,8 @@ server <- function(input, output, session) {
   )
   
   dateRangePlot <- eventReactive(input$date_plot_button, {
-    dataStore$d <- dataStore$d %>% mutate(dateRange = fishREndDate - fishRStartDate)
-    plot <- ggplot(dataStore$d, aes(x=dateRange)) + geom_histogram()
+    dataStore$d <- dataStore$d %>% mutate(fishRDateRange = fishREndDate - fishRStartDate)
+    plot <- ggplot(dataStore$d, aes(x=fishRDateRange)) + geom_histogram()
     return(plot)
   })
   
@@ -325,87 +330,209 @@ server <- function(input, output, session) {
     dateRangePlot()
   )
   
+  output$startDatePlot <- renderPlot(
+    startDatePlot()
+  )
+  
+  dateTable <- eventReactive(input$date_plot_button, {
+    #Note: this doesn't remove rows so will calculate all rows with a start date (or all w end date) regardless if there is a matching end date
+    #if wanting to only look at rows with both a start AND end date,  then need to remove rows before calculating both
+    
+    #TODO: pull into function so only calculating once between table and plots
+    #TODO: why does the dropdown reset almost every time
+    dataStore$d <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), !!sym(input$selectDateDay), sep = "-")))
+    
+    
+    startMin <- format(min(dataStore$d$fishRStartDate, na.rm = TRUE),'%Y-%m-%d')
+    startMax <- format(max(dataStore$d$fishRStartDate, na.rm = TRUE),'%Y-%m-%d')
+    startMedian <- format(median(dataStore$d$fishRStartDate, na.rm = TRUE),'%Y-%m-%d')
+    startMean <- format(mean(dataStore$d$fishRStartDate, na.rm = TRUE),'%Y-%m-%d')
+    
+    if(!input$dateRangeCheckbox){
+      summaryTable <- data.frame(c("","Min", "Max", "Median", "Mean"), c("Date", startMin, startMax, startMedian, startMean))
+    } else {
+      dataStore$d <- dataStore$d %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), !!sym(input$selectEndDateDay), sep = "-")))
+      dataStore$d <- dataStore$d %>% mutate(fishRDateRange = fishREndDate - fishRStartDate)
+      
+      endMin <- format(min(dataStore$d$fishREndDate, na.rm = TRUE),'%Y-%m-%d')
+      endMax <- format(max(dataStore$d$fishREndDate, na.rm = TRUE),'%Y-%m-%d')
+      endMedian <- format(median(dataStore$d$fishREndDate, na.rm = TRUE),'%Y-%m-%d')
+      endMean <- format(mean(dataStore$d$fishREndDate, na.rm = TRUE),'%Y-%m-%d')
+      
+      rangeMin <- min(dataStore$d$fishRDateRange, na.rm = TRUE)
+      rangeMax <- max(dataStore$d$fishRDateRange, na.rm = TRUE)
+      rangeMedian <- median(dataStore$d$fishRDateRange, na.rm = TRUE)
+      rangeMean <- round(mean(dataStore$d$fishRDateRange, na.rm = TRUE), 1)
+      
+      summaryTable <- data.frame(c("","Min", "Max", "Median", "Mean"), 
+                                 c("Start Date", startMin, startMax, startMedian, startMean),
+                                 c("End Date", endMin, endMax, endMedian, endMean),
+                                 c("Range", rangeMin, rangeMax, rangeMedian, rangeMean))
+    }
+    
+    return(summaryTable)
+  })
+  
   output$dataInvTimeline <-
     renderPlot({
       req(input$dataInvFile)
       #View(dataInv$timeline)
       
-      if(input$invDataCat != "Summary"){
-        inventoryData <- dataInv$inv %>% mutate(rowID = paste(data_source, sector, gear, area, sep="_"))
-        inventoryData <- filter(inventoryData, data_type_category==input$invDataCat)
-      } else {
-        inventoryData <- dataInv$inv %>% mutate(rowID = paste(data_source, sector, sep="_"))
-      }
-     
-      if(input$inventoryFilterAvailable){
-        inventoryData <- filter(inventoryData, available=="Yes")
-      }
-
-      # if(input$inventoryFilterEvents){
-      #   eventData <- NA
+      # if(input$invDataCat != "Summary"){
+      #   inventoryData <- dataInv$inv %>% mutate(rowID = paste(data_source, sector, gear, area, sep="_"))
+      #   inventoryData <- filter(inventoryData, data_type_category==input$invDataCat)
       # } else {
-        eventData <- dataInv$timeline
-        eventData$data_type_category <- "Major Events"
-        eventData$data_type_sub_category <- "Major Events"
-        colnames(eventData)[1] <- "data_source"
-        eventData$rowID <- eventData$data_source
+      #   inventoryData <- dataInv$inv %>% mutate(rowID = paste(data_source, sector, sep="_"))
       # }
-      combinedTimelineData <- merge(inventoryData, eventData, all = TRUE) %>%
-        mutate(end_year = if_else(!is.na(end_year), as.Date(paste0(end_year, "-12-31")), as.Date(paste0(start_year, "-12-31")))) %>% #set any na value to the end of the start year so it shows on graph
-        mutate(start_year = as.Date(paste0(start_year, "-01-01"))) 
-        
-      
-      
-      catchPeakDate <- combinedTimelineData[combinedTimelineData$data_source == "Catch Peaks", "start_year"]
-      catchPeakYear <- as.numeric(format(catchPeakDate, '%Y'))
-      fisheryStartDate <- combinedTimelineData[combinedTimelineData$data_source == "Fishery start (approximate if not known)", "start_year"]
-      fisheryStartYear <- as.numeric(format(fisheryStartDate, '%Y'))
-      
-      combinedTimelineData <- combinedTimelineData[!(combinedTimelineData$data_source=="Catch Peaks" | combinedTimelineData$data_source == "Fishery start (approximate if not known)"),]
-      
-      if(input$inventoryFilterEvents){
-        combinedTimelineData <- filter(combinedTimelineData, data_type_category != "Major Events")
-      }
-      
-      earliestDate <- min(combinedTimelineData$start_year)
-      earliestYear <- as.numeric(format(earliestDate, '%Y'))
-      
-        # mutate(end_date = as.Date(if_else(as.Date(as.character(end_date)) - as.Date(as.character(start_date)) < 30,
-        #                                   as.character(as.Date(as.character(end_date))+30),
-        #                                   as.character(end_date))))
-      # rowLabelCol <- getInvLabelCol(input$inventoryRowLabel) #event = combinedTimelineData[[rowLabelCol]]
-      # inlineLabelCol <- getInvLabelCol(input$inventoryInlineLabel)
-      #View(combinedTimelineData)
-      #p <- ggplot()
-      if(input$invDataCat == "Summary"){
-        timelinePlot <- plot_timeline(event = combinedTimelineData$rowID,
-                      start = combinedTimelineData$start_year,
-                      end = combinedTimelineData$end_year,
-                      #label = combinedTimelineData$fleet,
-                      group = combinedTimelineData$data_type_category,#TODO: pass as factor to set order
-                      title = "Timeline of Data",
-                      subtitle = "",
-                      save = FALSE)
-      } else {
-        timelinePlot <- plot_timeline(event = combinedTimelineData$rowID,
-                    start = combinedTimelineData$start_year,
-                    end = combinedTimelineData$end_year,
-                    #label = combinedTimelineData$fleet,
-                    group = combinedTimelineData$data_type_sub_category,#TODO: pass as factor to set order
-                    title = "Timeline of Data",
-                    subtitle = "",
-                    save = FALSE)
-      }
-      
-      graphOrigin <- ggplot_build(timelinePlot)$layout$panel_scales_x[[1]]$range$range[1]
-      catchPeakDaysFromGraphOrigin <- graphOrigin + (catchPeakYear - earliestYear) * 365
-      fisheryStartDaysFromGraphOrigin <- graphOrigin + (fisheryStartYear - earliestYear) * 365
-      
-      timelinePlot + geom_vline(aes(xintercept = catchPeakDaysFromGraphOrigin, linetype="dotdash"), size=1) +
-        geom_vline(aes(xintercept = fisheryStartDaysFromGraphOrigin, linetype="solid"), size=1) +
-        scale_linetype_identity(name = "", guide = guide_legend(reverse=TRUE),
-                                labels = c("Catch Peak", "Fishery Start")) + theme(legend.position = "bottom")
+      # 
+      # if(input$inventoryFilterAvailable){
+      #   inventoryData <- filter(inventoryData, available=="Yes")
+      # }
+      # 
+      # # if(input$inventoryFilterEvents){
+      # #   eventData <- NA
+      # # } else {
+      #   eventData <- dataInv$timeline
+      #   eventData$data_type_category <- "Major Events"
+      #   eventData$data_type_sub_category <- "Major Events"
+      #   colnames(eventData)[1] <- "data_source"
+      #   eventData$rowID <- eventData$data_source
+      # # }
+      # combinedTimelineData <- merge(inventoryData, eventData, all = TRUE) %>%
+      #   mutate(end_year = if_else(!is.na(end_year), as.Date(paste0(end_year, "-12-31")), as.Date(paste0(start_year, "-12-31")))) %>% #set any na value to the end of the start year so it shows on graph
+      #   mutate(start_year = as.Date(paste0(start_year, "-01-01"))) 
+      #   
+      # 
+      # 
+      # catchPeakDate <- combinedTimelineData[combinedTimelineData$data_source == "Catch Peaks", "start_year"]
+      # catchPeakYear <- as.numeric(format(catchPeakDate, '%Y'))
+      # fisheryStartDate <- combinedTimelineData[combinedTimelineData$data_source == "Fishery start (approximate if not known)", "start_year"]
+      # fisheryStartYear <- as.numeric(format(fisheryStartDate, '%Y'))
+      # 
+      # combinedTimelineData <- combinedTimelineData[!(combinedTimelineData$data_source=="Catch Peaks" | combinedTimelineData$data_source == "Fishery start (approximate if not known)"),]
+      # 
+      # if(input$inventoryFilterEvents){
+      #   combinedTimelineData <- filter(combinedTimelineData, data_type_category != "Major Events")
+      # }
+      # 
+      # earliestDate <- min(combinedTimelineData$start_year)
+      # earliestYear <- as.numeric(format(earliestDate, '%Y'))
+      # 
+      #   # mutate(end_date = as.Date(if_else(as.Date(as.character(end_date)) - as.Date(as.character(start_date)) < 30,
+      #   #                                   as.character(as.Date(as.character(end_date))+30),
+      #   #                                   as.character(end_date))))
+      # # rowLabelCol <- getInvLabelCol(input$inventoryRowLabel) #event = combinedTimelineData[[rowLabelCol]]
+      # # inlineLabelCol <- getInvLabelCol(input$inventoryInlineLabel)
+      # #View(combinedTimelineData)
+      # #p <- ggplot()
+      # if(input$invDataCat == "Summary"){
+      #   timelinePlot <- plot_timeline(event = combinedTimelineData$rowID,
+      #                 start = combinedTimelineData$start_year,
+      #                 end = combinedTimelineData$end_year,
+      #                 #label = combinedTimelineData$fleet,
+      #                 group = combinedTimelineData$data_type_category,#TODO: pass as factor to set order
+      #                 title = "Timeline of Data",
+      #                 subtitle = "",
+      #                 save = FALSE)
+      # } else {
+      #   timelinePlot <- plot_timeline(event = combinedTimelineData$rowID,
+      #               start = combinedTimelineData$start_year,
+      #               end = combinedTimelineData$end_year,
+      #               #label = combinedTimelineData$fleet,
+      #               group = combinedTimelineData$data_type_sub_category,#TODO: pass as factor to set order
+      #               title = "Timeline of Data",
+      #               subtitle = "",
+      #               save = FALSE)
+      # }
+      # 
+      # graphOrigin <- ggplot_build(timelinePlot)$layout$panel_scales_x[[1]]$range$range[1]
+      # catchPeakDaysFromGraphOrigin <- graphOrigin + (catchPeakYear - earliestYear) * 365
+      # fisheryStartDaysFromGraphOrigin <- graphOrigin + (fisheryStartYear - earliestYear) * 365
+      # 
+      # timelinePlot + geom_vline(aes(xintercept = catchPeakDaysFromGraphOrigin, linetype="dotdash"), size=1) +
+      #   geom_vline(aes(xintercept = fisheryStartDaysFromGraphOrigin, linetype="solid"), size=1) +
+      #   scale_linetype_identity(name = "", guide = guide_legend(reverse=TRUE),
+      #                           labels = c("Catch Peak", "Fishery Start")) + theme(legend.position = "bottom")
+      timelinePlot();
     })
+  
+  timelinePlot <- function(){
+    if(input$invDataCat != "Summary"){
+      inventoryData <- dataInv$inv %>% mutate(rowID = paste(data_source, sector, gear, area, sep="_"))
+      inventoryData <- filter(inventoryData, data_type_category==input$invDataCat)
+    } else {
+      inventoryData <- dataInv$inv %>% mutate(rowID = paste(data_source, sector, sep="_"))
+    }
+    
+    if(input$inventoryFilterAvailable){
+      inventoryData <- filter(inventoryData, available=="Yes")
+    }
+    
+    # if(input$inventoryFilterEvents){
+    #   eventData <- NA
+    # } else {
+    eventData <- dataInv$timeline
+    eventData$data_type_category <- "Major Events"
+    eventData$data_type_sub_category <- "Major Events"
+    colnames(eventData)[1] <- "data_source"
+    eventData$rowID <- eventData$data_source
+    # }
+    combinedTimelineData <- merge(inventoryData, eventData, all = TRUE) %>%
+      mutate(end_year = if_else(!is.na(end_year), as.Date(paste0(end_year, "-12-31")), as.Date(paste0(start_year, "-12-31")))) %>% #set any na value to the end of the start year so it shows on graph
+      mutate(start_year = as.Date(paste0(start_year, "-01-01"))) 
+    
+    
+    
+    catchPeakDate <- combinedTimelineData[combinedTimelineData$data_source == "Catch Peaks", "start_year"]
+    catchPeakYear <- as.numeric(format(catchPeakDate, '%Y'))
+    fisheryStartDate <- combinedTimelineData[combinedTimelineData$data_source == "Fishery start (approximate if not known)", "start_year"]
+    fisheryStartYear <- as.numeric(format(fisheryStartDate, '%Y'))
+    
+    combinedTimelineData <- combinedTimelineData[!(combinedTimelineData$data_source=="Catch Peaks" | combinedTimelineData$data_source == "Fishery start (approximate if not known)"),]
+    
+    if(input$inventoryFilterEvents){
+      combinedTimelineData <- filter(combinedTimelineData, data_type_category != "Major Events")
+    }
+    
+    earliestDate <- min(combinedTimelineData$start_year)
+    earliestYear <- as.numeric(format(earliestDate, '%Y'))
+    
+    # mutate(end_date = as.Date(if_else(as.Date(as.character(end_date)) - as.Date(as.character(start_date)) < 30,
+    #                                   as.character(as.Date(as.character(end_date))+30),
+    #                                   as.character(end_date))))
+    # rowLabelCol <- getInvLabelCol(input$inventoryRowLabel) #event = combinedTimelineData[[rowLabelCol]]
+    # inlineLabelCol <- getInvLabelCol(input$inventoryInlineLabel)
+    #View(combinedTimelineData)
+    #p <- ggplot()
+    if(input$invDataCat == "Summary"){
+      timelinePlot <- plot_timeline(event = combinedTimelineData$rowID,
+                                    start = combinedTimelineData$start_year,
+                                    end = combinedTimelineData$end_year,
+                                    #label = combinedTimelineData$fleet,
+                                    group = combinedTimelineData$data_type_category,#TODO: pass as factor to set order
+                                    title = "Timeline of Data",
+                                    subtitle = "",
+                                    save = FALSE)
+    } else {
+      timelinePlot <- plot_timeline(event = combinedTimelineData$rowID,
+                                    start = combinedTimelineData$start_year,
+                                    end = combinedTimelineData$end_year,
+                                    #label = combinedTimelineData$fleet,
+                                    group = combinedTimelineData$data_type_sub_category,#TODO: pass as factor to set order
+                                    title = "Timeline of Data",
+                                    subtitle = "",
+                                    save = FALSE)
+    }
+    
+    graphOrigin <- ggplot_build(timelinePlot)$layout$panel_scales_x[[1]]$range$range[1]
+    catchPeakDaysFromGraphOrigin <- graphOrigin + (catchPeakYear - earliestYear) * 365
+    fisheryStartDaysFromGraphOrigin <- graphOrigin + (fisheryStartYear - earliestYear) * 365
+    
+    timelinePlot + geom_vline(aes(xintercept = catchPeakDaysFromGraphOrigin, linetype="dotdash"), size=1) +
+      geom_vline(aes(xintercept = fisheryStartDaysFromGraphOrigin, linetype="solid"), size=1) +
+      scale_linetype_identity(name = "", guide = guide_legend(reverse=TRUE),
+                              labels = c("Catch Peak", "Fishery Start")) + theme(legend.position = "bottom")
+  }
   
   output$timelineValues <- renderTable({
     req(input$dataInvFile)
@@ -419,7 +546,34 @@ server <- function(input, output, session) {
     return(timelineTable)
   }, colnames = FALSE)
   
+  output$download_inventory <- downloadHandler(
+    filename = function() {
+      "data-inventory.png"
+    },
+    content = function(file) {
+      ggsave(file, plot = timelinePlot(), device = "png")
+    }
+  )
+  
+  output$download_LH <- downloadHandler(
+    filename = function() {
+      "life-history-plots.png"
+    },
+    content = function(file) {
+      vb <- vonBertPlot()
+      mat <- matPlot()
+      lw <- lwPlot()
+      natM <- natMPlot()
+      combinedPlots <- ggarrange(vb, mat, lw, natM)
+      ggsave(file, plot = combinedPlots, device = "png")
+    }
+  )
+  
   output$vonBertGrowthPlot <- renderPlot({
+    vonBertPlot()
+  })
+  
+  vonBertPlot <- function(){
     req(input$LHParamFile)
     vonBParams <- dataInv$vonBParams
     paramDF <- data.frame(vonBParams, group = as.character(1:length(vonBParams$Linf)))
@@ -436,11 +590,10 @@ server <- function(input, output, session) {
     }) %>% bind_rows
     vonBPlot <- ggplot(vonBFunc_data,aes(x=x, y=y, colour=row, linetype=Sex)) + geom_line(lwd=1.1) + labs(title="von Bertalanffy Growth Curves", x = "Years", y="Length")
     if(input$LHParamFacet != "None"){
-       vonBPlot <- vonBPlot + facet_wrap(input$LHParamFacet)
+      vonBPlot <- vonBPlot + facet_wrap(input$LHParamFacet)
     }
     return(vonBPlot)
-    
-  })
+  }
   
   output$vonBertTable <- renderTable({
     req(input$LHParamFile)
@@ -450,6 +603,10 @@ server <- function(input, output, session) {
   })
   
   output$maturityPlot <- renderPlot({
+   matPlot()
+  })
+  
+  matPlot <- function(){
     req(input$LHParamFile)
     mateq <- function(x, L50, L95){1 / (1+exp(-log(19)*((x-L50)/(L95-L50))))}
     matData <- dataInv$maturityParams
@@ -473,7 +630,7 @@ server <- function(input, output, session) {
     }
     
     return(matPlot)
-  })
+  }
   
   output$maturityTable <- renderTable({
     req(input$LHParamFile)
@@ -485,10 +642,14 @@ server <- function(input, output, session) {
   })
   
   output$lengthWeightPlot <- renderPlot({
+    lwPlot()
+  })
+  
+  lwPlot <- function(){
     req(input$LHParamFile)
     LWeq <- function(x, a, b){a*x^b}
     lwData <- dataInv$lenWeightParams
-
+    
     lwParamDF <- data.frame(lwData, row = as.character(1:nrow(lwData)))
     # TODO: determine line label
     #LWline1Label <- paste(test$Reference[1], test$Sex[1], test$Area[1], sep="_")
@@ -511,7 +672,7 @@ server <- function(input, output, session) {
     }
     
     return(lenWeightPlot)
-  })
+  }
   
   output$lengthWeightTable <- renderTable({
     req(input$LHParamFile)
@@ -522,6 +683,10 @@ server <- function(input, output, session) {
   })
   
   output$natMortPlot <- renderPlot({
+    natMPlot()
+  })
+  
+  natMPlot <- function(){
     req(input$LHParamFile)
     natMortData <- dataInv$natMortParams
     natMortDF <- data.frame(natMortData)
@@ -537,7 +702,7 @@ server <- function(input, output, session) {
     }
     
     return(natMortPlot)
-  })
+  }
   
   output$natMortTable <- renderTable({
     req(input$LHParamFile)

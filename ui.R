@@ -17,6 +17,7 @@ library(DT)
 library(lares, include.only = "plot_timeline")
 library(readxl)
 library(pivottabler)
+library(ggpubr)
 
 shiny_theme <- hrbrthemes::theme_ipsum(base_size = 14,
                                        axis_title_size = 16)
@@ -43,9 +44,9 @@ function(input,output){
       menuItem("2. Life History Parameters", tabName = "parameters", icon = icon("fish")),
       menuItem("Upload Data File", tabName = "dataUpload", icon = icon("upload")),
       menuItem("Univariate Data Exploration",
-               menuSubItem("Univariate: Categorical Data", tabName = "UniCategorical", icon = icon("chart-line")),
-               menuSubItem("Univariate: Numerical Data", tabName = "UniNumerical", icon = icon("chart-line")),
-               menuSubItem("Univariate: Date Data", tabName = "UniDate", icon = icon("calendar"))
+               menuSubItem("Text/Categorical Data", tabName = "UniCategorical", icon = icon("chart-line")),
+               menuSubItem("Numerical Data", tabName = "UniNumerical", icon = icon("chart-line")),
+               menuSubItem("Date Data", tabName = "UniDate", icon = icon("calendar"))
         ),
       # menuItem("Multivariate Data Exploration",
       #          menuSubItem("1 Numerical + Categorical Data", tabName = "Multi1Numeric", icon = icon("chart-line")),
@@ -74,22 +75,27 @@ function(input,output){
                      column(4,checkboxInput("inventoryFilterAvailable", "Show only available data sources?"),
                               checkboxInput("inventoryFilterEvents", "Hide Events Timeline?")),
                      column(4, uiOutput("timelineValues"))),
-            fluidRow(plotOutput("dataInvTimeline"))
+            fluidRow(column(4, downloadButton("download_inventory", "Download Inventory Plot"))),
+            fluidRow(column(12, plotOutput("dataInvTimeline")))
     ), #close inventory tab
     
     tabItem(tabName = "parameters",
             fluidRow(
               box(title = "Load life history parameter file", fileInput("LHParamFile", NULL), width = 12)),
             fluidRow(column(6, selectInput("LHParamFacet", "Group by category?", c("None", "Area", "Sex", "Methodology"), selected = "None"))),
+            fluidRow(column(4, downloadButton("download_LH", "Download Life History Plots"))),
             fluidRow(column(6,plotOutput("vonBertGrowthPlot")), column(6,tableOutput("vonBertTable"))),
+            br(),
             fluidRow(column(6,plotOutput("maturityPlot")), column(6,tableOutput("maturityTable"))),
+            br(),
             fluidRow(column(6,plotOutput("lengthWeightPlot")), column(6,tableOutput("lengthWeightTable"))),
+            br(),
             fluidRow(column(6,plotOutput("natMortPlot")), column(6,tableOutput("natMortTable")))
             
             
     ), #close parameter tab
     tabItem(tabName = "dataUpload",
-            fluidRow(h4("Upload the data file (CSV only) that you would like to explore:")),
+            fluidRow(column(12,h4("Upload the data file (CSV only) that you would like to explore:"))),
             fluidRow(box(title = "Load data file", fileInput("dataFile", NULL), width = 12)),
             conditionalPanel("output.dataFileUploaded == true", 
                              fluidRow(column(6, tableOutput("uploadSummary")),column(6, tableOutput("uploadColTypes"))),
@@ -104,30 +110,32 @@ function(input,output){
               conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
               conditionalPanel("output.dataFileUploaded == true",
                 uiOutput("selectUniqueCol"),
-                fluidRow(textOutput("uniCatMissingValueCountText")), br(),
-                fluidRow(dataTableOutput("uniqueValues")),
-                fluidRow(plotOutput("uniqueValuesBarPlot"))
+                fluidRow(column(4,textOutput("uniCatMissingValueCountText"))),
+                br(),
+                fluidRow(column(12, dataTableOutput("uniqueValues"))),
+                fluidRow(column(12, plotOutput("uniqueValuesBarPlot")))
               )
     ), #close UniCategorical tab
     tabItem(tabName = "UniNumerical",
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
-              fluidRow(uiOutput("selectUnivariateNumberCol"), selectInput("uniPlotType", "Choose plot type:", c("Histogram", "Density", "Box", "Violin"))),
-              fluidRow(tableOutput("uniNumMissingValueCountText")), br(), #check if converts "NA" to actual NA values in R, not as strings
-              fluidRow(column(3,tableOutput("summaryStatTable")), column(9, plotOutput("univariatePlot")))
+              fluidRow(column(4, uiOutput("selectUnivariateNumberCol")), column(4, selectInput("uniPlotType", "Choose plot type:", c("Histogram", "Density", "Box", "Violin")))),
+              fluidRow(column(4, tableOutput("uniNumMissingValueCountText")), column(4,tableOutput("summaryStatTable"))), br(), #check if converts "NA" to actual NA values in R, not as strings
+              fluidRow(column(12, plotOutput("univariatePlot")))
             )
     ), #close UniNumerical tab
     tabItem(tabName = "UniDate",
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
-              fluidRow(h5("The section requires dates to be formatted into 3 columns: Day, Month, Year. All need to be in numerical format. Years must be 4 digits."), checkboxInput("dateRangeCheckbox", "Is this a date range?")),
-              fluidRow(column(4,h5("Select the values for the date:"), uiOutput("selectDateYear"), uiOutput("selectDateMonth"), uiOutput("selectDateDay")),
+              fluidRow(column(12, h5("The section requires dates to be formatted into 3 columns: Day, Month, Year. All need to be in numerical format. Years must be 4 digits."), checkboxInput("dateRangeCheckbox", "Is this a date range?"))),
+              fluidRow(column(3, h5("Select the values for the date:"), uiOutput("selectDateYear"), uiOutput("selectDateMonth"), uiOutput("selectDateDay")),
                        conditionalPanel("input.dateRangeCheckbox == true",
-                          column(4,h5("Select the values for the ending date:"), uiOutput("selectEndDateYear"), uiOutput("selectEndDateMonth"), uiOutput("selectEndDateDay")))),
-              fluidRow(actionButton("date_plot_button","Plot Dates")),
+                          column(3, h5("Select the values for the ending date:"), uiOutput("selectEndDateYear"), uiOutput("selectEndDateMonth"), uiOutput("selectEndDateDay")))),
+              fluidRow(column(4, actionButton("date_plot_button","Plot Dates"))),
+              fluidRow(column(6, tableOutput("dateTable"))),
               fluidRow(column(6, plotOutput("startDatePlot")), conditionalPanel("input.dateRangeCheckbox == true",column(6, plotOutput("endDatePlot")))),
               conditionalPanel("input.dateRangeCheckbox == true",
-                               fluidRow(plotOutput("dateRangePlot")))
+                               br(), fluidRow(column(6, plotOutput("dateRangePlot"))))
               #TODO: handle non numeric and blank values; causes error compiling the date column
             )
     ), #close UniDate tab
@@ -172,9 +180,9 @@ function(input,output){
                       uiOutput("dataCoverageGroup1"),
                       uiOutput("dataCoverageGroup2"),
                       uiOutput("dataCoverageMetric"))),
-                fluidRow(downloadButton("download_coverage", "Download Data Coverage Summary")),
-                fluidRow(plotOutput("data_tally_plot")),
-                fluidRow(dataTableOutput("data_tally"))),
+                fluidRow(column(4, downloadButton("download_coverage", "Download Data Coverage Summary"))),
+                fluidRow(column(12, plotOutput("data_tally_plot"))), br(),
+                fluidRow(column(12, dataTableOutput("data_tally")))),
             ),
     tabItem(tabName = "lcomps",
       checkboxInput("example","Check this box to use example data instead of uploading data"),
