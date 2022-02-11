@@ -18,6 +18,8 @@ library(lares, include.only = "plot_timeline")
 library(readxl)
 library(pivottabler)
 library(ggpubr)
+library(openxlsx)
+
 
 shiny_theme <- hrbrthemes::theme_ipsum(base_size = 14,
                                        axis_title_size = 16)
@@ -40,7 +42,6 @@ function(input,output){
       id = "tabs",
       menuItem("Introduction", tabName = "description", icon = icon("book-reader")),
       menuItem("1. Data Inventory", tabName = "inventory", icon = icon("calendar")),
-      #menuItem("2. Time Series Data Coverage", tabName = "coverage", icon = icon("chart-line")),
       menuItem("2. Life History Parameters", tabName = "parameters", icon = icon("fish")),
       menuItem("Upload Data File", tabName = "dataUpload", icon = icon("upload")),
       menuItem("Univariate Data Exploration",
@@ -48,14 +49,8 @@ function(input,output){
                menuSubItem("Numerical Data", tabName = "UniNumerical", icon = icon("chart-line")),
                menuSubItem("Date Data", tabName = "UniDate", icon = icon("calendar"))
         ),
-      # menuItem("Multivariate Data Exploration",
-      #          menuSubItem("1 Numerical + Categorical Data", tabName = "Multi1Numeric", icon = icon("chart-line")),
-      #          menuSubItem("2 Numerical Data", tabName = "Multi2Numeric", icon = icon("chart-line"))
-      # ),
       menuItem("Multivariate Data Exploration", tabName = "Multivariate", icon = icon("chart-line")),
-      menuItem("Data Coverage", tabName = "dataCoverage", icon = icon("percent"))#,
-      #menuItem("General Data Exploration",tabName = "lcomps", icon = icon("chart-line"))
-      #menuItem("CPUE",tabName = "cpue", icon = icon("chart-line"))
+      menuItem("Data Coverage", tabName = "dataCoverage", icon = icon("percent"))
     )) # close dashboardSidebar
 
 
@@ -84,13 +79,17 @@ function(input,output){
               box(title = "Load life history parameter file", fileInput("LHParamFile", NULL), width = 12)),
             fluidRow(column(6, selectInput("LHParamFacet", "Group by category?", c("None", "Area", "Sex", "Methodology"), selected = "None"))),
             fluidRow(column(4, downloadButton("download_LH", "Download Life History Plots"))),
-            fluidRow(column(6,plotOutput("vonBertGrowthPlot")), column(6,tableOutput("vonBertTable"))),
+            fluidRow(hr(style = "border-top: 1px solid #000000;"), 
+                     column(6, plotOutput("vonBertGrowthPlot")), column(6,tableOutput("vonBertTable"))),
             br(),
-            fluidRow(column(6,plotOutput("maturityPlot")), column(6,tableOutput("maturityTable"))),
+            fluidRow(hr(style = "border-top: 1px solid #000000;"), 
+                     column(6,plotOutput("maturityPlot")), column(6,tableOutput("maturityTable"))),
             br(),
-            fluidRow(column(6,plotOutput("lengthWeightPlot")), column(6,tableOutput("lengthWeightTable"))),
+            fluidRow(hr(style = "border-top: 1px solid #000000;"), 
+                     column(6,plotOutput("lengthWeightPlot")), column(6,tableOutput("lengthWeightTable"))),
             br(),
-            fluidRow(column(6,plotOutput("natMortPlot")), column(6,tableOutput("natMortTable")))
+            fluidRow(hr(style = "border-top: 1px solid #000000;"), 
+                     column(6,plotOutput("natMortPlot")), column(6,tableOutput("natMortTable")))
             
             
     ), #close parameter tab
@@ -98,11 +97,19 @@ function(input,output){
             fluidRow(column(12,h4("Upload the data file (CSV only) that you would like to explore:"))),
             fluidRow(box(title = "Load data file", fileInput("dataFile", NULL), width = 12)),
             conditionalPanel("output.dataFileUploaded == true", 
-                             fluidRow(column(6, tableOutput("uploadSummary")),column(6, tableOutput("uploadColTypes"))),
+                             fluidRow(column(6, tableOutput("uploadSummary"))),
                              box(
                                title="Data Preview", width = NULL,status = "primary",
                                div(style = 'overflow-x: scroll',tableOutput("uploadDataHead"))
-                              )
+                              ),
+                             fluidRow( column(8,
+                                              h3("Column Data Types"), 
+                                               "Use this to understand how the data has been loaded by the app. The app, using R programming language, requires each column to contain only one type of data. The app will automatically determine what type of data the column contains. For example, if every data in a column is a number, then the app will determine that the column is numeric (or interger) data. However, if even one data point contains letters (or other non-numeric values), then the app will consider the entire column to be text (character) values. This has implications for how the data can be plotted or analyzed by the app. If a plot or analysis is not behaving how expected, use this table to check if the data is being interpreted as the intended data type. If it is not, then you might need to review the raw data to determine why. For example, if numeric data has text to intdicate a missing value, then it will be interpreted by the app as text (character) data. Possible ways to address this include, creating a subset of the data with the affected rows removed, or creating a version of the dataset where missing values are indicated by blanks (e.g., no data), instead of text. See manual for more details.", br(), 
+                                               strong("R Data types"), br(),
+                                               h5("\"character\": text data"),
+                                               h5("\"numeric\", \"integer\": numbers"),
+                                               h5("\"logical\": true\\false")),
+                                       tableOutput("uploadColTypes"))
             )
             #tableOutput("uploadSummary")
     ), #close dataUpload tab
@@ -112,6 +119,8 @@ function(input,output){
                 uiOutput("selectUniqueCol"),
                 fluidRow(column(4,textOutput("uniCatMissingValueCountText"))),
                 br(),
+                fluidRow(column(4, downloadButton("download_unique_values_table", "Download Summary Table")),
+                         column(4, downloadButton("download_unique_values_plot", "Download Plot"))),
                 fluidRow(column(12, dataTableOutput("uniqueValues"))),
                 fluidRow(column(12, plotOutput("uniqueValuesBarPlot")))
               )
@@ -120,6 +129,8 @@ function(input,output){
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
               fluidRow(column(4, uiOutput("selectUnivariateNumberCol")), column(4, selectInput("uniPlotType", "Choose plot type:", c("Histogram", "Density", "Box", "Violin")))),
+              fluidRow(column(4, downloadButton("download_uni_numerical_table", "Download Summary Table")),
+                       column(4, downloadButton("download_uni_numerical_plot", "Download Plot"))),
               fluidRow(column(4, tableOutput("uniNumMissingValueCountText")), column(4,tableOutput("summaryStatTable"))), br(), #check if converts "NA" to actual NA values in R, not as strings
               fluidRow(column(12, plotOutput("univariatePlot")))
             )
@@ -131,7 +142,9 @@ function(input,output){
               fluidRow(column(3, h5("Select the values for the date:"), uiOutput("selectDateYear"), uiOutput("selectDateMonth"), uiOutput("selectDateDay")),
                        conditionalPanel("input.dateRangeCheckbox == true",
                           column(3, h5("Select the values for the ending date:"), uiOutput("selectEndDateYear"), uiOutput("selectEndDateMonth"), uiOutput("selectEndDateDay")))),
-              fluidRow(column(4, actionButton("date_plot_button","Plot Dates"))),
+              fluidRow(column(4, actionButton("date_plot_button","Plot Dates"))), br(),
+              fluidRow(column(4, downloadButton("download_uni_date_table", "Download Summary Table")),
+                       column(4, downloadButton("download_uni_date_plot", "Download Plot"))),
               fluidRow(column(6, tableOutput("dateTable"))),
               fluidRow(column(6, plotOutput("startDatePlot")), conditionalPanel("input.dateRangeCheckbox == true",column(6, plotOutput("endDatePlot")))),
               conditionalPanel("input.dateRangeCheckbox == true",
@@ -161,9 +174,12 @@ function(input,output){
                                               checkboxInput("multi_factorfill","Convert Color Variable to Categorical?", value = FALSE),
                                               selectInput("multi_scales", "Use same scales for faceted plots?", c("Use same for rows and columns" = "fixed", "Vary for rows only" = "free_x", "Vary for columns only" = "free_y", "Vary for rows and columns" = "free"))),
                                
-                               column(4, selectInput("pivotTableStatInput", "Select stat for pivot table:", c("Count Only", "Mean" = "mean", "Min/Med/Max" = "quantiles", "Standard Deviation" = "sd")))
+                               column(4, selectInput("pivotTableStatInput", "Select stat for pivot table (shown below the plots):", c("Count Only", "Mean" = "mean", "Min/Med/Max" = "quantiles", "Standard Deviation" = "sd")))
                               ),
                              actionButton("multi_plot_button","Plot Data"),
+                             fluidRow(
+                                      column(4, downloadButton("download_multi_plot", "Download Plot")),
+                                      column(4, downloadButton("dl_multi_table", "Download Table"))),
                              plotOutput("multi_plot"), 
                              br(),
                              br(),
@@ -180,7 +196,8 @@ function(input,output){
                       uiOutput("dataCoverageGroup1"),
                       uiOutput("dataCoverageGroup2"),
                       uiOutput("dataCoverageMetric"))),
-                fluidRow(column(4, downloadButton("download_coverage", "Download Data Coverage Summary"))),
+                fluidRow(column(4, downloadButton("download_coverage_table", "Download Data Coverage Summary Table")),
+                         column(4, downloadButton("download_coverage_plot", "Download Data Coverage Summary Plot"))),
                 fluidRow(column(12, plotOutput("data_tally_plot"))), br(),
                 fluidRow(column(12, dataTableOutput("data_tally")))),
             ),
