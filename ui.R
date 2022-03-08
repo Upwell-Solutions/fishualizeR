@@ -152,18 +152,6 @@ function(input,output){
               #TODO: handle non numeric and blank values; causes error compiling the date column
             )
     ), #close UniDate tab
-    # tabItem("Multi1Numeric",
-    #         conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
-    #         conditionalPanel("output.dataFileUploaded == true",
-    #                          
-    #         )
-    # ), #close Multi1Numeric tab
-    # tabItem("Multi2Numeric",
-    #         conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
-    #         conditionalPanel("output.dataFileUploaded == true",
-    #                          
-    #         )
-    # ), #close Multi2Numeric tab
     tabItem("Multivariate",
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
@@ -177,13 +165,19 @@ function(input,output){
                                column(4, selectInput("pivotTableStatInput", "Select stat for pivot table (shown below the plots):", c("Count Only", "Mean" = "mean", "Min/Med/Max" = "quantiles", "Standard Deviation" = "sd")))
                               ),
                              actionButton("multi_plot_button","Plot Data"),
+                             br(),
+                             br(),
                              fluidRow(
                                       column(4, downloadButton("download_multi_plot", "Download Plot")),
                                       column(4, downloadButton("dl_multi_table", "Download Table"))),
                              plotOutput("multi_plot"), 
                              br(),
                              br(),
-                             pivottablerOutput("multi_table")
+                             h5("Pivot Table"),
+                             pivottablerOutput("multi_table"),
+                             br(),
+                             br(),
+                             fluidRow(column(12, plotOutput("eventsTimeline")))
             )
     ), #close Multivariate tab
     tabItem(tabName = "dataCoverage", 

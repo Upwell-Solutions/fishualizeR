@@ -142,6 +142,10 @@ server <- function(input, output, session) {
     return(!is.null(dataStore$d))
   })
   
+  output$inventoryUploaded <- reactive({
+    return(!is.null(dataInv$timeline))
+  })
+  
   outputOptions(output, 'dataFileUploaded', suspendWhenHidden=FALSE)
   
   output$selectUniqueCol <- renderUI({
@@ -163,6 +167,8 @@ server <- function(input, output, session) {
     req(input$selectUniqueCol)
     uniqueVals <- count(dataStore$d, !!sym(input$selectUniqueCol)) %>%
       rename(Count = n)
+    uniqueVals[input$selectUniqueCol] <- paste0("\'", uniqueVals[[input$selectUniqueCol]], "\'")
+
     return(uniqueVals)
   }
   
@@ -193,7 +199,6 @@ server <- function(input, output, session) {
   })
   
   uniqueValsPlot <- function(){
-    #uniqueVals <- count(dataStore$d, !!sym(input$selectUniqueCol))
     uniqueValsBarPlot <- ggplot(dataStore$d, aes(x=factor(!!sym(input$selectUniqueCol)))) +
       geom_bar()
     
@@ -457,13 +462,19 @@ server <- function(input, output, session) {
     }
   )
   
-  output$dataInvTimeline <-
+  output$dataInvTimeline <- 
     renderPlot({
       req(input$dataInvFile)
       timelinePlot();
     })
   
-  timelinePlot <- function(){
+  output$eventsTimeline <- 
+    renderPlot({
+      req(input$dataInvFile)
+      timelinePlot(TRUE);
+    })
+  
+  timelinePlot <- function(eventsOnly = FALSE){
     if(input$invDataCat != "Summary"){
       inventoryData <- dataInv$inv %>% mutate(rowID = paste(data_source, sector, gear, area, sep="_"))
       inventoryData <- filter(inventoryData, data_type_category==input$invDataCat)
@@ -475,19 +486,15 @@ server <- function(input, output, session) {
       inventoryData <- filter(inventoryData, available=="Yes")
     }
     
-    # if(input$inventoryFilterEvents){
-    #   eventData <- NA
-    # } else {
     eventData <- dataInv$timeline
     eventData$data_type_category <- "Major Events"
     eventData$data_type_sub_category <- "Major Events"
     colnames(eventData)[1] <- "data_source"
     eventData$rowID <- eventData$data_source
-    # }
+
     combinedTimelineData <- merge(inventoryData, eventData, all = TRUE) %>%
       mutate(end_year = if_else(!is.na(end_year), as.Date(paste0(end_year, "-12-31")), as.Date(paste0(start_year, "-12-31")))) %>% #set any na value to the end of the start year so it shows on graph
       mutate(start_year = as.Date(paste0(start_year, "-01-01"))) 
-    
     
     
     catchPeakDate <- combinedTimelineData[combinedTimelineData$data_source == "Catch Peaks", "start_year"]
@@ -497,12 +504,11 @@ server <- function(input, output, session) {
     
     combinedTimelineData <- combinedTimelineData[!(combinedTimelineData$data_source=="Catch Peaks" | combinedTimelineData$data_source == "Fishery start (approximate if not known)"),]
     
-    if(input$inventoryFilterEvents){
+    if(input$inventoryFilterEvents & !eventsOnly){
       combinedTimelineData <- filter(combinedTimelineData, data_type_category != "Major Events")
     }
     
-    earliestDate <- min(combinedTimelineData$start_year)
-    earliestYear <- as.numeric(format(earliestDate, '%Y'))
+
     
     # mutate(end_date = as.Date(if_else(as.Date(as.character(end_date)) - as.Date(as.character(start_date)) < 30,
     #                                   as.character(as.Date(as.character(end_date))+30),
@@ -511,7 +517,18 @@ server <- function(input, output, session) {
     # inlineLabelCol <- getInvLabelCol(input$inventoryInlineLabel)
     #View(combinedTimelineData)
     #p <- ggplot()
-    if(input$invDataCat == "Summary"){
+    if(eventsOnly){
+      combinedTimelineData <- filter(combinedTimelineData, data_type_category == "Major Events")
+      timelinePlot <- plot_timeline(event = combinedTimelineData$rowID,
+                                    start = combinedTimelineData$start_year,
+                                    end = combinedTimelineData$end_year,
+                                    #label = combinedTimelineData$fleet,
+                                    group = combinedTimelineData$data_type_category,#TODO: pass as factor to set order
+                                    title = "Timeline of Major Events",
+                                    subtitle = "",
+                                    save = FALSE)
+    }
+    else if(input$invDataCat == "Summary"){
       timelinePlot <- plot_timeline(event = combinedTimelineData$rowID,
                                     start = combinedTimelineData$start_year,
                                     end = combinedTimelineData$end_year,
@@ -530,6 +547,9 @@ server <- function(input, output, session) {
                                     subtitle = "",
                                     save = FALSE)
     }
+    
+    earliestDate <- min(combinedTimelineData$start_year)
+    earliestYear <- as.numeric(format(earliestDate, '%Y'))
     
     graphOrigin <- ggplot_build(timelinePlot)$layout$panel_scales_x[[1]]$range$range[1]
     catchPeakDaysFromGraphOrigin <- graphOrigin + (catchPeakYear - earliestYear) * 365
