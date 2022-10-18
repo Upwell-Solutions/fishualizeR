@@ -22,6 +22,15 @@ removeNAsByCol <- function(data, desiredCols) {
   return(data[completeVec, ])
 }
 
+gg_facet_nrow <- function(p){
+  p %>% ggplot2::ggplot_build()  %>%
+    magrittr::extract2('layout')       %>%
+    magrittr::extract2('layout') %>%
+    magrittr::extract2('ROW')          %>%
+    unique()                           %>%
+    length()
+}
+
 server <- function(input, output, session) {
 
   # length composition ------------------------------------------------------
@@ -62,54 +71,86 @@ server <- function(input, output, session) {
   })
   
   readDataInv <- reactive({ #TODO: validate that is xlsx
-
-    readDataInv <- read_excel(input$dataInvFile$datapath, sheet = "DataInventory")
-
+    tryCatch({
+      readDataInv <- read_excel(input$dataInvFile$datapath, sheet = "DataInventory")
+    }, 
+    error=function(e){
+      showNotification(paste("ERROR. No data inventory tab. Need to use template format."), duration = 0)
+    })
   })
   
   observeEvent(input$dataInvFile, {
-    dataInv$inv <- readDataInv() %>%
-      janitor::clean_names()
-    dataInv$timeline <- readTimeline() %>%
-      janitor::clean_names()
+
+    tryCatch({
+      dataInv$inv <- readDataInv() %>%
+        janitor::clean_names()
+      dataInv$timeline <- readTimeline() %>%
+        janitor::clean_names()
+    },
+    error=function(e){
+      showNotification(paste("ERROR. Need to use template format."), duration = 0)
+    })
 
   })
   
   readTimeline <- reactive({
-    
-    readTimeline <- read_excel(input$dataInvFile$datapath, sheet = "Timeline")
-    
+    tryCatch({
+      readTimeline <- read_excel(input$dataInvFile$datapath, sheet = "Timeline")
+    }, 
+    error=function(e){
+      showNotification(paste("ERROR. No timeline tab. Need to use template format."), duration = 0)
+    })
   })
   
   observeEvent(input$LHParamFile, {
-    dataInv$vonBParams <- readvonBParams()
-    dataInv$natMortParams <- readNatMortParams()
-    dataInv$maturityParams <- readMaturityParams()
-    dataInv$lenWeightParams <- readLenWeightParams()
+    # tryCatch({
+      dataInv$vonBParams <- readvonBParams()
+      dataInv$natMortParams <- readNatMortParams()
+      dataInv$maturityParams <- readMaturityParams()
+      dataInv$lenWeightParams <- readLenWeightParams()
+    # }, 
+    # error=function(e){
+    #  # showNotification(paste("ERROR. Could not load file. Need to use template format."), duration = 0)
+    # })
+    
     
   })
   
   readvonBParams <- reactive({
-    
-    readvonBParams <- read_excel(input$LHParamFile$datapath, sheet = "vonBert")
-    
+    tryCatch({
+      readvonBParams <- read_excel(input$LHParamFile$datapath, sheet = "vonBert")
+    }, 
+    error=function(e){
+      showNotification(paste("ERROR. No von Bertalanffy tab. Need to use template format."), duration = 0)
+    })
   })
   
   readNatMortParams <- reactive({
+    tryCatch({
+      readNatMortParams <- read_excel(input$LHParamFile$datapath, sheet = "Mortality")
+    }, 
+    error=function(e){
+      showNotification(paste("ERROR. No natural mortality tab. Need to use template format."), duration = 0)
+    })
     
-    readNatMortParams <- read_excel(input$LHParamFile$datapath, sheet = "Mortality")
     
   })
   
   readMaturityParams <- reactive({
-    
-    readMaturityParams <- read_excel(input$LHParamFile$datapath, sheet = "Maturity")
-    
+    tryCatch({
+      readMaturityParams <- read_excel(input$LHParamFile$datapath, sheet = "Maturity")
+    }, 
+    error=function(e){
+      showNotification(paste("ERROR. No maturity tab. Need to use template format."), duration = 0)
+    })
   })
   readLenWeightParams <- reactive({
-    
-    readLenWeightParams <- read_excel(input$LHParamFile$datapath, sheet = "LW")
-    
+    tryCatch({
+      readLenWeightParams <- read_excel(input$LHParamFile$datapath, sheet = "LW")
+    }, 
+    error=function(e){
+      showNotification(paste("ERROR. No length/weight tab. Need to use template format."), duration = 0)
+    })
   })
   
   observeEvent(input$dataFile, { #TODO: handle both csv and xlsx? no xlsx is too slow
@@ -873,9 +914,9 @@ output$colnames <- renderUI({
   # inspect raw data
   
   output$multi_plot_x <- renderUI({
-    vars <- c("Select one" = "", colnames(dataStore$d))
+    vars <- c(NA, colnames(dataStore$d))
     selectInput("multi_x",
-                "Choose what to plot on x-axis",
+                "Select first variable:",
                 vars,
                 multiple = FALSE)
   })
@@ -883,9 +924,43 @@ output$colnames <- renderUI({
   output$multi_plot_y <- renderUI({
     vars <- c(NA,  colnames(dataStore$d))
     selectInput("multi_y",
-                "Choose what to plot on y-axis",
+                "Select second variable:",
                 vars,
                 multiple = FALSE)
+  })
+  
+  output$multi_plot_factor_x <- renderUI({
+    vars <- c(NA,  colnames(dataStore$d))
+    selectInput("multi_factor_x",
+                "Choose factor for X axis (box and violin plots only)",
+                vars,
+                multiple = FALSE)
+  })
+  
+  # output$multi_plot_type <- renderUI({
+  #   vars <- c("Histogram", "Density", "Box", "Violin")
+  #   if(is.na(input$multi_y)){
+  #     vars <- c("Scatterplot")
+  #   }
+  #   selectInput("multi_type",
+  #               "Choose what type of plot",
+  #               vars,
+  #               multiple = FALSE)
+  # })
+  plotChoiceTrigger <- reactive({
+    list(input$multi_x, input$multi_y)
+  })
+  
+  observeEvent(ignoreInit = TRUE, c(input$multi_factor_x, input$multi_x, input$multi_y),{
+
+    if (input$multi_factor_x != "NA"){
+      vars <- c("Box", "Violin")
+    } else if(input$multi_y != "NA" && input$multi_x != "NA"){
+      vars <- c("Scatterplot")
+    } else {
+      vars <- c("Histogram", "Density", "Box", "Violin")
+    }
+    updateSelectInput(session, "multi_plot_type", choices = vars)
   })
   
   output$multi_plot_fill <- renderUI({
@@ -911,16 +986,21 @@ output$colnames <- renderUI({
       y = input$multi_y,
       fill = input$multi_fill,
       facet = input$multi_facet,
+      factorX = input$multi_factor_x,
       factorfill = input$multi_factorfill,
-      scales = input$multi_scales
+      scales = input$multi_scales,
+      plotType = input$multi_plot_type
     )
   })
   
-  output$multi_plot <- renderPlot(
+  hMultiPlot <- reactive(gg_facet_nrow(multi_plot()))
+  
+  output$multi_plot <- renderPlot({
     withProgress(message = 'Generating plot', value = 0, {
       multi_plot()
+      
     })
-  )
+  }, height = function(){200 + hMultiPlot()*200})
   
   output$download_multi_plot <- downloadHandler(
     filename = function() {
@@ -937,8 +1017,11 @@ output$colnames <- renderUI({
   })
   
   multi_table_raw <- function(){
+    mainVar <- input$multi_x
+
+
     pt <- PivotTable$new()
-    pt$addData(removeNAsByCol(dataStore$d, input$multi_x))
+    pt$addData(removeNAsByCol(dataStore$d, mainVar))
     if(input$multi_fill != "NA"){
       pt$addRowDataGroups(input$multi_fill)
     }
@@ -948,15 +1031,15 @@ output$colnames <- renderUI({
     
     pt$defineCalculation(calculationName="Count", summariseExpression="n()")
     
-    if(input$pivotTableStatInput == "mean"){
-      pt$defineCalculation(calculationName="Mean", summariseExpression=paste0("round(mean(",input$multi_x,"),2)"))
-    } else if(input$pivotTableStatInput == "quantiles"){
-      pt$defineCalculation(calculationName="Min", summariseExpression=paste0("min(",input$multi_x,")"))
-      pt$defineCalculation(calculationName="Median", summariseExpression=paste0("median(",input$multi_x,")"))
-      pt$defineCalculation(calculationName="Max", summariseExpression=paste0("max(",input$multi_x,")"))
-    } else if(input$pivotTableStatInput == "sd"){
-      pt$defineCalculation(calculationName="Std. Dev.", summariseExpression=paste0("round(sd(",input$multi_x,"),2)"))
-    }
+    # if(input$pivotTableStatInput == "mean"){
+      pt$defineCalculation(calculationName="Mean", summariseExpression=paste0("round(mean(",mainVar,"),2)"))
+    # } else if(input$pivotTableStatInput == "quantiles"){
+      pt$defineCalculation(calculationName="Min", summariseExpression=paste0("min(",mainVar,")"))
+      pt$defineCalculation(calculationName="Median", summariseExpression=paste0("median(",mainVar,")"))
+      pt$defineCalculation(calculationName="Max", summariseExpression=paste0("max(",mainVar,")"))
+    # } else if(input$pivotTableStatInput == "sd"){
+      pt$defineCalculation(calculationName="Std. Dev.", summariseExpression=paste0("round(sd(",mainVar,"),2)"))
+    # }
     
     pt$evaluatePivot()
     return(pt)
@@ -1027,6 +1110,7 @@ output$colnames <- renderUI({
       y = input$raw_y,
       fill = input$raw_fill,
       facet = input$raw_facet,
+      factorX = input$multi_factor_x,
       factorfill = input$raw_factorfill,
       scales = "free"
     )

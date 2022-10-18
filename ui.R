@@ -156,13 +156,16 @@ function(input,output){
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
                              fluidRow( column(4, uiOutput("multi_plot_x"),
-                                                uiOutput("multi_plot_y")),
+                                              #checkboxInput("multi_factor_x","Convert X Variable to Categorical?", value = FALSE),
+                                                uiOutput("multi_plot_y"),
+                                                selectInput("multi_plot_type", "Choose plot type", c("Histogram", "Density", "Box", "Violin"))),
                                        column(4, uiOutput("multi_plot_fill"),
-                                              uiOutput("multi_plot_facet"),
                                               checkboxInput("multi_factorfill","Convert Color Variable to Categorical?", value = FALSE),
-                                              selectInput("multi_scales", "Use same scales for faceted plots?", c("Use same for rows and columns" = "fixed", "Vary for rows only" = "free_x", "Vary for columns only" = "free_y", "Vary for rows and columns" = "free"))),
+                                              uiOutput("multi_plot_factor_x"),
+                                              ),
                                
-                               column(4, selectInput("pivotTableStatInput", "Select stat for pivot table (shown below the plots):", c("Count Only", "Mean" = "mean", "Min/Med/Max" = "quantiles", "Standard Deviation" = "sd")))
+                               column(4, uiOutput("multi_plot_facet"),
+                                      selectInput("multi_scales", "Use same scales for faceted plots?", c("Use same for rows and columns" = "fixed", "Vary for rows only" = "free_x", "Vary for columns only" = "free_y", "Vary for rows and columns" = "free")))
                               ),
                              actionButton("multi_plot_button","Plot Data"),
                              br(),
@@ -170,11 +173,11 @@ function(input,output){
                              fluidRow(
                                       column(4, downloadButton("download_multi_plot", "Download Plot")),
                                       column(4, downloadButton("dl_multi_table", "Download Table"))),
-                             plotOutput("multi_plot"), 
+                             plotOutput("multi_plot", height = "100%"), 
                              br(),
                              br(),
                              h5("Pivot Table"),
-                             pivottablerOutput("multi_table"),
+                             div(style="overflow-x: scroll", pivottablerOutput("multi_table")),
                              br(),
                              br(),
                              fluidRow(column(12, plotOutput("eventsTimeline")))

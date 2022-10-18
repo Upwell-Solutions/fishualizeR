@@ -13,27 +13,27 @@ assess_coverage <-
 
     if (n_col == "NA" | is.na(n_col)){ # if data are raw observations
 
-    # if (length_col != "NA"){
-    group_vars <- c(group_var1, group_var2)
-
-    obs <-  nrow(data)
-
-
-    out <- data %>%
-      dplyr::group_by(dplyr::across({
-        {
-          group_vars
-        }
-      })) %>%
-      dplyr::summarise(n = length(.data[[length_col]]),
-                       n_present =  sum(!is.na(.data[[length_col]])),
-                       p_missing = mean(is.na(.data[[length_col]])) * 100) %>%
-      dplyr::ungroup() %>%
-      dplyr::mutate(pn = (n / obs) * 100)
-
-    # } else {
-    #   out <- NA
-    # }
+      # if (length_col != "NA"){
+      group_vars <- c(group_var1, group_var2)
+  
+      obs <-  nrow(data)
+  
+  
+      out <- data %>%
+        dplyr::group_by(dplyr::across({
+          {
+            group_vars
+          }
+        })) %>%
+        dplyr::summarise(n = length(.data[[length_col]]),
+                         n_present =  sum(!is.na(.data[[length_col]])),
+                         p_missing = mean(is.na(.data[[length_col]])) * 100) %>%
+        dplyr::ungroup() %>%
+        dplyr::mutate(pn = (n / obs) * 100)
+  
+      # } else {
+      #   out <- NA
+      # }
 
 
     } else {
