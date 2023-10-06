@@ -3,7 +3,6 @@ library(shiny)
 library(shinythemes)
 library(shinycssloaders)
 library(shinydashboard)
-library(here)
 library(shinyalert)
 library(janitor)
 library(readr)
@@ -17,17 +16,19 @@ library(DT)
 library(lares, include.only = "plot_timeline")
 library(readxl)
 library(pivottabler)
-library(ggpubr)
+#library(ggpubr)
 library(openxlsx)
+#library(ragg)
 
-
-shiny_theme <- hrbrthemes::theme_ipsum(base_size = 14,
-                                       axis_title_size = 16)
-
-ggplot2::theme_set(shiny_theme)
+#TODO: review libraries for use
+#TODO: fonts dont work on shinyappsio
+# shiny_theme <- hrbrthemes::theme_ipsum(base_size = 14,
+#                                        axis_title_size = 16)
+# 
+# ggplot2::theme_set(shiny_theme)
 functions <- list.files(here::here("R"))
 
-purrr::walk(functions, ~ source(here::here("R", .x)))
+#purrr::walk(functions, ~ source(here::here("R", .x)))
 
 
 function(input,output){
@@ -60,25 +61,36 @@ function(input,output){
     useShinyalert(),
     tabItems(
     tabItem(tabName = "description",
-    h1("fishualizeR"),
-    "fishualizeR helps users visualize common fishery related data. There are two ways to explore your data: 1) Add your data in the provided templates and follow along with each step (as applicable); 2) Upload your data as a CSV and use the various tools in the General Data Exploration tab."),
+      h1("fishualizeR"),
+      p("FishualizeR is an online, publicly available, web-based R Shiny app that helps users visualize common fishery-related data. There are two ways to explore your data: 1) Add your data in the 2 provided templates and follow along with each step contained in the Manual; 2) Upload your data as a CSV and use the various tools in the General Data Exploration tab."),
+      a("Click here to download zip file of the templates and example datasets listed below.", href = "Fishualize_Templates_and_Examples.zip", target="_blank", rel="noopener noreferrer"),
+      p("Excel Templates:"),
+      tags$ol(
+        tags$li("Excel_Template1_DataInventory_Events"),
+        tags$li("Excel_Template2_LifeHistoryInventory")),
+      p("Example or Mock Datasets:"),
+      tags$ol(
+        tags$li("Figure_3.3.1_mock_data_inventory_events.xlsx"),
+        tags$li("Figure_3.3.2_mock_length_freq.csv"),
+        tags$li("Box_B6.2.1.1_mock_length_freq_area.csv"),
+        tags$li("Box_B6.3.1_B6.3.2_mock_biometric_area_trip_duration.csv"),
+        tags$li("Box_B7.1.1_mock_length_freq_area_gear.csv"))
+    ),
     
     tabItem(tabName = "inventory",
             fluidRow(
-              box(title = "Load Data Inventory file", fileInput("dataInvFile", NULL), width = 12)),
+              box(title = "Load Data Inventory File", width = 12, "The data inventory file must be an xlsx following the format of the template provided.", br(), a("Download the data inventory template.", href = "Annex1_Template_DataInventory_Events.xlsx", target="_blank", rel="noopener noreferrer"),br(), br(), fileInput("dataInvFile", NULL))),
             fluidRow(column(4, selectInput("invDataCat", "Which data category to use?", c("Summary", "Catch" = "Catch", "Effort" = "Effort", "Abundance" = "Abundance", "Length" = "Length composition"))),
                      column(4,checkboxInput("inventoryFilterAvailable", "Show only available data sources?"),
                               checkboxInput("inventoryFilterEvents", "Hide Events Timeline?")),
                      column(4, uiOutput("timelineValues"))),
-            fluidRow(column(4, downloadButton("download_inventory", "Download Inventory Plot"))),
             fluidRow(column(12, plotOutput("dataInvTimeline")))
     ), #close inventory tab
     
     tabItem(tabName = "parameters",
             fluidRow(
-              box(title = "Load life history parameter file", fileInput("LHParamFile", NULL), width = 12)),
+              box(title = "Load life history parameter file", width = 12, "The life history parameter inventory file must be an xlsx following the format of the template provided.", br(), a("Download the life history parameter inventory template.", href = "Annex2_Template_LifeHistoryInventory.xlsx", target="_blank", rel="noopener noreferrer"),br(), br(), fileInput("LHParamFile", NULL))),
             fluidRow(column(6, selectInput("LHParamFacet", "Group by category?", c("None", "Area", "Sex", "Methodology"), selected = "None"))),
-            fluidRow(column(4, downloadButton("download_LH", "Download Life History Plots"))),
             fluidRow(hr(style = "border-top: 1px solid #000000;"), 
                      column(6, plotOutput("vonBertGrowthPlot")), column(6,tableOutput("vonBertTable"))),
             br(),
@@ -117,10 +129,10 @@ function(input,output){
               conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
               conditionalPanel("output.dataFileUploaded == true",
                 uiOutput("selectUniqueCol"),
-                fluidRow(column(4,textOutput("uniCatMissingValueCountText"))),
+                fluidRow(column(4,textOutput("uniCatMissingValueCountText")),
+                         column(8, downloadButton("download_unique_values_table", "Download Summary Table"), align='right')),
+                        #column(4, downloadButton("download_unique_values_plot", "Download Plot"))),
                 br(),
-                fluidRow(column(4, downloadButton("download_unique_values_table", "Download Summary Table")),
-                         column(4, downloadButton("download_unique_values_plot", "Download Plot"))),
                 fluidRow(column(12, dataTableOutput("uniqueValues"))),
                 fluidRow(column(12, plotOutput("uniqueValuesBarPlot")))
               )
@@ -129,10 +141,10 @@ function(input,output){
             conditionalPanel("output.dataFileUploaded == false", h4("First, use the Upload Data File Tab to upload data to explore.")),
             conditionalPanel("output.dataFileUploaded == true",
               fluidRow(column(4, uiOutput("selectUnivariateNumberCol")), column(4, selectInput("uniPlotType", "Choose plot type:", c("Histogram", "Density", "Box", "Violin")))),
-              fluidRow(column(4, downloadButton("download_uni_numerical_table", "Download Summary Table")),
-                       column(4, downloadButton("download_uni_numerical_plot", "Download Plot"))),
               fluidRow(column(4, tableOutput("uniNumMissingValueCountText")), column(4,tableOutput("summaryStatTable"))), br(), #check if converts "NA" to actual NA values in R, not as strings
-              fluidRow(column(12, plotOutput("univariatePlot")))
+              fluidRow(column(12, plotOutput("univariatePlot"))),
+              #fluidRow(column(4, downloadButton("download_uni_numerical_table", "Download Summary Table")))
+                       #column(4, downloadButton("download_uni_numerical_plot", "Download Plot"))),
             )
     ), #close UniNumerical tab
     tabItem(tabName = "UniDate",
@@ -143,12 +155,12 @@ function(input,output){
                        conditionalPanel("input.dateRangeCheckbox == true",
                           column(3, h5("Select the values for the ending date:"), uiOutput("selectEndDateYear"), uiOutput("selectEndDateMonth"), uiOutput("selectEndDateDay")))),
               fluidRow(column(4, actionButton("date_plot_button","Plot Dates"))), br(),
-              fluidRow(column(4, downloadButton("download_uni_date_table", "Download Summary Table")),
-                       column(4, downloadButton("download_uni_date_plot", "Download Plot"))),
               fluidRow(column(6, tableOutput("dateTable"))),
               fluidRow(column(6, plotOutput("startDatePlot")), conditionalPanel("input.dateRangeCheckbox == true",column(6, plotOutput("endDatePlot")))),
               conditionalPanel("input.dateRangeCheckbox == true",
-                               br(), fluidRow(column(6, plotOutput("dateRangePlot"))))
+                               br(), fluidRow(column(6, plotOutput("dateRangePlot")))),
+              #fluidRow(column(4, downloadButton("download_uni_date_table", "Download Summary Table")))
+                       #column(4, downloadButton("download_uni_date_plot", "Download Plot"))),
               #TODO: handle non numeric and blank values; causes error compiling the date column
             )
     ), #close UniDate tab
@@ -170,13 +182,13 @@ function(input,output){
                              actionButton("multi_plot_button","Plot Data"),
                              br(),
                              br(),
-                             fluidRow(
-                                      column(4, downloadButton("download_multi_plot", "Download Plot")),
-                                      column(4, downloadButton("dl_multi_table", "Download Table"))),
                              plotOutput("multi_plot", height = "100%"), 
                              br(),
                              br(),
-                             h5("Pivot Table"),
+                             fluidRow(
+                               column(4, h5("Pivot Table")),
+                               # column(4, downloadButton("download_multi_plot", "Download Plot")),
+                               column(8, downloadButton("dl_multi_table", "Download Table"), align='right')),
                              div(style="overflow-x: scroll", pivottablerOutput("multi_table")),
                              br(),
                              br(),
@@ -193,10 +205,11 @@ function(input,output){
                       uiOutput("dataCoverageGroup1"),
                       uiOutput("dataCoverageGroup2"),
                       uiOutput("dataCoverageMetric"))),
-                fluidRow(column(4, downloadButton("download_coverage_table", "Download Data Coverage Summary Table")),
-                         column(4, downloadButton("download_coverage_plot", "Download Data Coverage Summary Plot"))),
                 fluidRow(column(12, plotOutput("data_tally_plot"))), br(),
-                fluidRow(column(12, dataTableOutput("data_tally")))),
+                fluidRow(column(12, dataTableOutput("data_tally"))),
+                fluidRow(column(4, downloadButton("download_coverage_table", "Download Data Coverage Summary Table")))
+                         # column(4, downloadButton("download_coverage_plot", "Download Data Coverage Summary Plot"))),
+                ),
             ),
     tabItem(tabName = "lcomps",
       checkboxInput("example","Check this box to use example data instead of uploading data"),

@@ -1,21 +1,15 @@
-
-
-
+#source("R/grouped-plotter.R")
 
 options(shiny.maxRequestSize = 500*1024^2) #increase max upload to 500MB
 
-funs <- list.files(here::here("R"))
-
-walk(funs, ~ source(here::here("R", .x)))
-
-getInvLabelCol <- function(column){
-  colName <- switch(column,
-         "None" = "None",
-         "Source Name" = "source_name",
-         "Institution" = "institution",
-         "Fleet" = "fleet")
-  return(colName)
-}
+# getInvLabelCol <- function(column){
+#   colName <- switch(column,
+#          "None" = "None",
+#          "Source Name" = "source_name",
+#          "Institution" = "institution",
+#          "Fleet" = "fleet")
+#   return(colName)
+# }
 
 removeNAsByCol <- function(data, desiredCols) {
   completeVec <- complete.cases(data[, desiredCols])
@@ -246,14 +240,14 @@ server <- function(input, output, session) {
     return(uniqueValsBarPlot)
   }
   
-  output$download_unique_values_plot <- downloadHandler(
-    filename = function() {
-      paste(input$selectUniqueCol, "categories-plot.png")
-    },
-    content = function(file) {
-      ggsave(file, plot = uniqueValsPlot(), device = "png")
-    }
-  )
+  # output$download_unique_values_plot <- downloadHandler(
+  #   filename = function() {
+  #     paste(input$selectUniqueCol, "categories-plot.png")
+  #   },
+  #   content = function(file) {
+  #     ggsave(file, plot = uniqueValsPlot(), device = "png")
+  #   }
+  # )
   
   output$selectUnivariateNumberCol <- renderUI({
     vars <- colnames(dataStore$d[map_lgl(dataStore$d, is.numeric)]) #TODO: some numeric columns have 'ND' or similar. discuss with Ricky, maybe if you don't see if then it has text and need to go clean, replace with NA/blank values
@@ -289,14 +283,14 @@ server <- function(input, output, session) {
     # }
   }
   
-  output$download_uni_numerical_table <- downloadHandler(
-    filename = function() {
-      paste(input$selectUnivariateNumberCol, "summary-table.csv")
-    },
-    content = function(file) {
-      vroom::vroom_write(uniSummaryTable(), file, ",")
-    }
-  )
+  # output$download_uni_numerical_table <- downloadHandler(
+  #   filename = function() {
+  #     paste(input$selectUnivariateNumberCol, "summary-table.csv")
+  #   },
+  #   content = function(file) {
+  #     vroom::vroom_write(uniSummaryTable(), file, ",")
+  #   }
+  # )
   
   output$univariatePlot <- renderPlot({
     uniNumericPlot()
@@ -324,20 +318,20 @@ server <- function(input, output, session) {
     return(plot)
   }
   
-  output$download_uni_numerical_plot <- downloadHandler(
-    filename = function() {
-      paste(input$selectUnivariateNumberCol, input$uniPlotType, "-plot.png")
-    },
-    content = function(file) {
-      ggsave(file, plot = uniNumericPlot(), device = "png")
-    }
-  )
+  # output$download_uni_numerical_plot <- downloadHandler(
+  #   filename = function() {
+  #     paste(input$selectUnivariateNumberCol, input$uniPlotType, "-plot.png")
+  #   },
+  #   content = function(file) {
+  #     ggsave(file, plot = uniNumericPlot(), device = "png")
+  #   }
+  # )
   
   output$selectDateDay <- renderUI({
-    vars <- colnames(dataStore$d) 
+    vars <- c("<No day data>", colnames(dataStore$d))
 
     selectizeInput("selectDateDay",
-                   "Day:",
+                   "Day (optional):",
                    vars)
   })
   
@@ -359,10 +353,10 @@ server <- function(input, output, session) {
   })
   
   output$selectEndDateDay <- renderUI({
-    vars <- colnames(dataStore$d) 
+    vars <- c("<No day data>", colnames(dataStore$d)) 
     
     selectizeInput("selectEndDateDay",
-                   "End Day:",
+                   "End Day (Optional):",
                    vars)
   })
   
@@ -388,7 +382,12 @@ server <- function(input, output, session) {
   })
   
   startDtPlot <- function(){
-    dataStore$dateTmpTable <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), !!sym(input$selectDateDay), sep = "-")))
+    if(input$selectDateDay == "<No day data>"){
+      #set day to 1 for all
+      dataStore$dateTmpTable <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), 1, sep = "-")))
+    } else {
+      dataStore$dateTmpTable <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), !!sym(input$selectDateDay), sep = "-")))
+    }
     plot <- ggplot(dataStore$dateTmpTable, aes(x=fishRStartDate)) + geom_histogram()
     return(plot)
   }
@@ -404,7 +403,12 @@ server <- function(input, output, session) {
   })
   
   endDtPlot <- function(){
-    dataStore$dateTmpTable <- dataStore$dateTmpTable %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), !!sym(input$selectEndDateDay), sep = "-")))
+    if(input$selectEndDateDay == "<No day data>"){
+      #set day to 1 for all
+      dataStore$dateTmpTable <- dataStore$dateTmpTable %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), 1, sep = "-")))
+    } else {
+      dataStore$dateTmpTable <- dataStore$dateTmpTable %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), !!sym(input$selectEndDateDay), sep = "-")))
+    }
     plot <- ggplot(dataStore$dateTmpTable, aes(x=fishREndDate)) + geom_histogram()
     return(plot)
   }
@@ -431,25 +435,25 @@ server <- function(input, output, session) {
     startDatePlot()
   )
   
-  output$download_uni_date_plot <- downloadHandler(
-
-    filename = function() {
-      paste("date-plot.png")
-    },
+  # output$download_uni_date_plot <- downloadHandler(
+  # 
+  #   filename = function() {
+  #     paste("date-plot.png")
+  #   },
+  #   
+  #   content = function(file) {
+  #     if(input$dateRangeCheckbox){
+  #       start <- startDtPlot()
+  #       end <- endDtPlot()
+  #       range <- dtRangePlot()
+  #       combinedPlots <- ggarrange(start, end, range)
+  #       ggsave(file, plot = combinedPlots, device = "png")
+  #     } else {
+  #       ggsave(file, plot = startDtPlot(), device = "png")
+  #     }
+  #   }
     
-    content = function(file) {
-      if(input$dateRangeCheckbox){
-        start <- startDtPlot()
-        end <- endDtPlot()
-        range <- dtRangePlot()
-        combinedPlots <- ggarrange(start, end, range)
-        ggsave(file, plot = combinedPlots, device = "png")
-      } else {
-        ggsave(file, plot = startDtPlot(), device = "png")
-      }
-    }
-    
-  )
+  #)
   
   dateTable <- eventReactive(input$date_plot_button, {
     dateSummaryTable()
@@ -461,8 +465,12 @@ server <- function(input, output, session) {
     
     #TODO: pull into function so only calculating once between table and plots and downloading
     
-    dataStore$dateTmpTable <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), !!sym(input$selectDateDay), sep = "-")))
-    
+    if(input$selectDateDay == "<No day data>"){
+      #set day to 1 for all
+      dataStore$dateTmpTable <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), 1, sep = "-")))
+    } else {
+      dataStore$dateTmpTable <- dataStore$d %>% mutate(fishRStartDate = as.Date(paste(!!sym(input$selectDateYear), !!sym(input$selectDateMonth), !!sym(input$selectDateDay), sep = "-")))
+    }
     
     startMin <- format(min(dataStore$dateTmpTable$fishRStartDate, na.rm = TRUE),'%Y-%m-%d')
     startMax <- format(max(dataStore$dateTmpTable$fishRStartDate, na.rm = TRUE),'%Y-%m-%d')
@@ -472,7 +480,13 @@ server <- function(input, output, session) {
     if(!input$dateRangeCheckbox){
       summaryTable <- data.frame(c("","Min", "Max", "Median", "Mean"), c("Date", startMin, startMax, startMedian, startMean))
     } else {
-      dataStore$dateTmpTable <- dataStore$dateTmpTable %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), !!sym(input$selectEndDateDay), sep = "-")))
+      if(input$selectEndDateDay == "<No day data>"){
+        #set day to 1 for all
+        dataStore$dateTmpTable <- dataStore$dateTmpTable %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), 1, sep = "-")))
+      } else {
+        dataStore$dateTmpTable <- dataStore$dateTmpTable %>% mutate(fishREndDate = as.Date(paste(!!sym(input$selectEndDateYear), !!sym(input$selectEndDateMonth), !!sym(input$selectEndDateDay), sep = "-")))
+      }
+      
       dataStore$dateTmpTable <- dataStore$dateTmpTable %>% mutate(fishRDateRange = fishREndDate - fishRStartDate)
       
       endMin <- format(min(dataStore$dateTmpTable$fishREndDate, na.rm = TRUE),'%Y-%m-%d')
@@ -494,14 +508,14 @@ server <- function(input, output, session) {
     return(summaryTable)
   }
   
-  output$download_uni_date_table <- downloadHandler(
-    filename = function() {
-      "date-summary-table.csv"
-    },
-    content = function(file) {
-      vroom::vroom_write(dateSummaryTable(), file, ",")
-    }
-  )
+  # output$download_uni_date_table <- downloadHandler(
+  #   filename = function() {
+  #     "date-summary-table.csv"
+  #   },
+  #   content = function(file) {
+  #     vroom::vroom_write(dateSummaryTable(), file, ",")
+  #   }
+  # )
   
   output$dataInvTimeline <- 
     renderPlot({
@@ -533,15 +547,24 @@ server <- function(input, output, session) {
     colnames(eventData)[1] <- "data_source"
     eventData$rowID <- eventData$data_source
 
+
     combinedTimelineData <- merge(inventoryData, eventData, all = TRUE) %>%
       mutate(end_year = if_else(!is.na(end_year), as.Date(paste0(end_year, "-12-31")), as.Date(paste0(start_year, "-12-31")))) %>% #set any na value to the end of the start year so it shows on graph
       mutate(start_year = as.Date(paste0(start_year, "-01-01"))) 
-    
-    
-    catchPeakDate <- combinedTimelineData[combinedTimelineData$data_source == "Catch Peaks", "start_year"]
-    catchPeakYear <- as.numeric(format(catchPeakDate, '%Y'))
-    fisheryStartDate <- combinedTimelineData[combinedTimelineData$data_source == "Fishery start (approximate if not known)", "start_year"]
-    fisheryStartYear <- as.numeric(format(fisheryStartDate, '%Y'))
+    #TODO: handle not having these or lock the template so cant remove
+    if("Catch Peaks" %in% combinedTimelineData$data_source){
+      catchPeakDate <- combinedTimelineData[combinedTimelineData$data_source == "Catch Peaks", "start_year"]
+      catchPeakYear <- as.numeric(format(catchPeakDate, '%Y'))
+    } else {
+      showNotification(paste("ERROR. No \"Catch Peaks\" event. This event is required."), duration = 0)
+    }
+      
+    if("Fishery start (approximate if not known)" %in% combinedTimelineData$data_source){
+      fisheryStartDate <- combinedTimelineData[combinedTimelineData$data_source == "Fishery start (approximate if not known)", "start_year"]
+      fisheryStartYear <- as.numeric(format(fisheryStartDate, '%Y'))
+    } else {
+      showNotification(paste("ERROR. No \"Fishery start (approximate if not known)\" event. This event is required"), duration = 0)
+    }
     
     combinedTimelineData <- combinedTimelineData[!(combinedTimelineData$data_source=="Catch Peaks" | combinedTimelineData$data_source == "Fishery start (approximate if not known)"),]
     
@@ -575,7 +598,7 @@ server <- function(input, output, session) {
                                     end = combinedTimelineData$end_year,
                                     #label = combinedTimelineData$fleet,
                                     group = combinedTimelineData$data_type_category,#TODO: pass as factor to set order
-                                    title = "Timeline of Data",
+                                    title = "Visualization of Data Inventory and Timeline of Influential Events",
                                     subtitle = "",
                                     save = FALSE)
     } else {
@@ -584,7 +607,7 @@ server <- function(input, output, session) {
                                     end = combinedTimelineData$end_year,
                                     #label = combinedTimelineData$fleet,
                                     group = combinedTimelineData$data_type_sub_category,#TODO: pass as factor to set order
-                                    title = "Timeline of Data",
+                                    title = "Visualization of Data Inventory and Timeline of Influential Events",
                                     subtitle = "",
                                     save = FALSE)
     }
@@ -612,28 +635,28 @@ server <- function(input, output, session) {
     return(timelineTable)
   }, colnames = FALSE)
   
-  output$download_inventory <- downloadHandler(
-    filename = function() {
-      "data-inventory.png"
-    },
-    content = function(file) {
-      ggsave(file, plot = timelinePlot(), device = "png")
-    }
-  )
-  
-  output$download_LH <- downloadHandler(
-    filename = function() {
-      "life-history-plots.png"
-    },
-    content = function(file) {
-      vb <- vonBertPlot()
-      mat <- matPlot()
-      lw <- lwPlot()
-      natM <- natMPlot()
-      combinedPlots <- ggarrange(vb, mat, lw, natM)
-      ggsave(file, plot = combinedPlots, device = "png")
-    }
-  )
+  # output$download_inventory <- downloadHandler(
+  #   filename = function() {
+  #     "data-inventory.png"
+  #   },
+  #   content = function(file) {
+  #     ggsave(file, plot = timelinePlot(), device = "png")
+  #   }
+  # )
+  # 
+  # output$download_LH <- downloadHandler(
+  #   filename = function() {
+  #     "life-history-plots.png"
+  #   },
+  #   content = function(file) {
+  #     vb <- vonBertPlot()
+  #     mat <- matPlot()
+  #     lw <- lwPlot()
+  #     natM <- natMPlot()
+  #     combinedPlots <- ggarrange(vb, mat, lw, natM)
+  #     ggsave(file, plot = combinedPlots, device = "png")
+  #   }
+  # )
   
   output$vonBertGrowthPlot <- renderPlot({
     vonBertPlot()
@@ -757,14 +780,18 @@ server <- function(input, output, session) {
     natMortData <- dataInv$natMortParams
     natMortDF <- data.frame(natMortData)
     
-    natMortPlot <- ggplot(natMortDF, aes(x=Mortality)) + xlim(0,1) +
+    natMortPlot <- ggplot(natMortDF, aes(x=Mortality)) + #xlim(0,1) +
       labs(title="Natural Mortality Density Plot", x = "Natural Mortality", y="Density")
-    
+
     if(input$LHParamFacet != "None"){
       facet <- sym(input$LHParamFacet)
-      natMortPlot <- natMortPlot + geom_density(alpha=.5) + aes(fill=!!facet)
+      mu <- natMortDF %>% group_by(!!facet) %>% summarize(grp.mean=mean(Mortality))
+      natMortPlot <- natMortPlot + geom_density(alpha=.5) + aes(fill=!!facet) + 
+        geom_vline(data=mu, aes(xintercept=grp.mean, color=!!facet), linetype="dashed")
     } else{
-      natMortPlot <- natMortPlot + geom_density(alpha=.5, fill="lightblue")
+      mu <- natMortDF %>% summarize(grp.mean=mean(Mortality))
+      natMortPlot <- natMortPlot + geom_density(alpha=.5, fill="lightblue") + 
+        geom_vline(data=mu, aes(xintercept=grp.mean), linetype="dashed")
     }
     
     return(natMortPlot)
@@ -956,7 +983,7 @@ output$colnames <- renderUI({
     if (input$multi_factor_x != "NA"){
       vars <- c("Box", "Violin")
     } else if(input$multi_y != "NA" && input$multi_x != "NA"){
-      vars <- c("Scatterplot")
+      vars <- c("Scatterplot", "Line Graph", "Stacked Bar Graph")
     } else {
       vars <- c("Histogram", "Density", "Box", "Violin")
     }
@@ -1002,14 +1029,14 @@ output$colnames <- renderUI({
     })
   }, height = function(){200 + hMultiPlot()*200})
   
-  output$download_multi_plot <- downloadHandler(
-    filename = function() {
-      "multivariate-plot.png"
-    },
-    content = function(file) {
-      ggsave(file, plot = multi_plot(), device = "png")
-    }
-  )
+  # output$download_multi_plot <- downloadHandler(
+  #   filename = function() {
+  #     "multivariate-plot.png"
+  #   },
+  #   content = function(file) {
+  #     ggsave(file, plot = multi_plot(), device = "png")
+  #   }
+  # )
   
   multi_table <- eventReactive(input$multi_plot_button,{
     pt <- multi_table_raw()
@@ -1282,14 +1309,14 @@ output$colnames <- renderUI({
     }
   )
   
-  output$download_coverage_plot <- downloadHandler(
-    filename = function() {
-      "data-coverage-plot.png"
-    },
-    content = function(file) {
-      ggsave(file, plot = dataTallyPlot(), device = "png")
-    }
-  )
+  # output$download_coverage_plot <- downloadHandler(
+  #   filename = function() {
+  #     "data-coverage-plot.png"
+  #   },
+  #   content = function(file) {
+  #     ggsave(file, plot = dataTallyPlot(), device = "png")
+  #   }
+  # )
   
   output$cov_var_1 <- renderUI({
     vars <- colnames(ldata$lcomps)

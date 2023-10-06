@@ -29,22 +29,31 @@ grouped_plotter <- function(data,
     facet <- "facet"
   }
   
-  if(plotType == "Scatterplot"){
+  if(plotType == "Scatterplot" || plotType == "Line Graph" || plotType == "Stacked Bar Graph"){
     if (!is.na(fill)) {
       plot <- data %>%
         ggplot(aes(
           x = .data[[x]],
           y = .data[[y]],
           fill = .data[[fill]]
-        )) +
-        geom_point(shape = 21, size = 4) 
+        ))  
       
     } else {
       plot <- data %>%
         ggplot(aes(x = .data[[x]],
-                   y = .data[[y]])) +
-        geom_point(shape = 21, size = 4) 
+                   y = .data[[y]]))
       
+    }
+    if(plotType == "Scatterplot"){
+      plot <- plot + geom_point(shape = 21, size = 4) 
+    } else if(plotType == "Line Graph"){
+      if(!is.na(fill)){
+        plot <- plot + geom_line(aes(color=.data[[fill]]))
+      } else{
+        plot <- plot + geom_line()
+      }
+    } else {
+      plot <- plot + geom_bar(stat = "identity")
     }
   } else {
     mainVar <- x
