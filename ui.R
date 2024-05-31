@@ -70,11 +70,11 @@ function(input,output){
         tags$li("Excel_Template2_LifeHistoryInventory")),
       p("Example or Mock Datasets:"),
       tags$ol(
-        tags$li("Figure_3.3.1_mock_data_inventory_events.xlsx"),
-        tags$li("Figure_3.3.2_mock_length_freq.csv"),
-        tags$li("Box_B6.2.1.1_mock_length_freq_area.csv"),
-        tags$li("Box_B6.3.1_B6.3.2_mock_biometric_area_trip_duration.csv"),
-        tags$li("Box_B7.1.1_mock_length_freq_area_gear.csv"))
+        tags$li("Data_Inventory_Events.xlsx"),
+        tags$li("Length_Freq.csv"),
+        tags$li("Length_Freq_Area.csv"),
+        tags$li("Biometric_Area_Trip_Duration.csv"),
+        tags$li("Length_Freq_Area_Gear.csv"))
     ),
     
     tabItem(tabName = "inventory",
